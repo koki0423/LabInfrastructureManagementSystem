@@ -38,6 +38,10 @@ bash scripts/build-deb.sh
 
 alpha版のGitHub Release手順は [docs/release.md](docs/release.md) を参照してください。
 
+## ドキュメント
+
+運用手順、リリース手順、設計資料、旧バージョンのDB仕様は [docs/README.md](docs/README.md) に集約しています。
+
 ## 構成
 
 - `frontend/`: 静的フロントエンド
