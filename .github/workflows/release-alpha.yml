@@ -1,0 +1,105 @@
+name: Build alpha Debian package
+
+run-name: Build and release ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "v*-alpha*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alpha-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-release:
+    name: Build and publish alpha package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out the tagged source
+        # actions/checkout v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate alpha tag and derive Debian version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [[ "${tag}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-alpha\.([0-9]+)$ ]]; then
+            deb_version="${BASH_REMATCH[1]}~alpha.${BASH_REMATCH[2]}"
+          else
+            echo "Unsupported alpha tag: ${tag}" >&2
+            echo "Expected format: vX.Y.Z-alpha.N" >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "deb_version=${deb_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify Docker availability
+        run: |
+          docker info
+          docker version
+
+      - name: Build Debian package in the Linux build container
+        env:
+          DEB_VERSION: ${{ steps.version.outputs.deb_version }}
+        run: bash scripts/build-deb.sh
+
+      - name: Validate package and create checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(dist/*.deb)
+          [ "${#packages[@]}" -eq 1 ] || {
+            echo "Expected exactly one Debian package in dist/." >&2
+            exit 1
+          }
+          dpkg-deb --info "${packages[0]}"
+          dpkg-deb --contents "${packages[0]}"
+          (
+            cd dist
+            sha256sum ./*.deb > SHA256SUMS
+          )
+
+      - name: Store workflow artifact
+        # actions/upload-artifact v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lims-system-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create or update GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" dist/*.deb dist/SHA256SUMS \
+              --clobber \
+              --repo "${REPOSITORY}"
+          else
+            gh release create "${TAG}" dist/*.deb dist/SHA256SUMS \
+              --verify-tag \
+              --prerelease \
+              --latest=false \
+              --title "LIMS ${TAG} (Alpha)" \
+              --generate-notes \
+              --repo "${REPOSITORY}"
+          fi

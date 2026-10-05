@@ -1,0 +1,20 @@
+# Debian package build output
+/build/
+/dist/
+/debian/
+/*.buildinfo
+/*.changes
+/*.deb
+/*.build
+/*.tar.*
+
+# Generated Go/Swagger output and local configuration
+/backend/docs/
+/backend/config/config.yaml
+/deploy/lims.env
+/.cache/
+/old/
+
+# Editor and operating system files
+.DS_Store
+Thumbs.db

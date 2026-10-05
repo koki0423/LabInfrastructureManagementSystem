@@ -1,0 +1,26 @@
+<div class="screen-content">
+    <h2>返す &gt; 機材を選ぶ</h2>
+    <p>複数のまだ返していない機材が見つかりました。返す機材を選択してください。</p>
+    <div id="return-select-feedback" class="batch-status-banner info page-feedback" hidden></div>
+
+    <div class="panel-scroll">
+        <table class="data-table table-min-900">
+            <thead>
+                <tr>
+                    <th>備品番号</th>
+                    <th>備品名</th>
+                    <th>シリアル番号</th>
+                    <th>数量</th>
+                    <th>借りた人</th>
+                    <th>借りた日</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="return-search-result-body"></tbody>
+        </table>
+    </div>
+
+    <div class="nav-buttons nav-buttons-compact">
+        <button class="back-btn" onclick="LendReturnController.backToReturnSearch()">再検索</button>
+    </div>
+</div>

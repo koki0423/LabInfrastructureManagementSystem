@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly LIMS_CONFIG="/etc/lims/lims.env"
+readonly LIMS_STATE_DIR="/var/lib/lims"
+readonly LIMS_INITIALIZED_FILE="${LIMS_STATE_DIR}/.initialized"
+readonly LIMS_COMPOSE="/usr/share/lims/docker-compose.yml"
+readonly LIMS_ENV_TEMPLATE="/usr/share/lims/examples/lims.env.example"
+readonly LIMS_SERVICE="lims.service"
+
+die() {
+    echo "[ERROR] $*" >&2
+    exit 1
+}
+
+info() {
+    echo "[INFO] $*"
+}
+
+require_root() {
+    [ "$(id -u)" -eq 0 ] || die "root権限で実行してください。例: sudo limsctl $1"
+}
+
+ensure_docker() {
+    command -v docker >/dev/null 2>&1 || die "Docker Engine が見つかりません。"
+    docker info >/dev/null 2>&1 || die "Docker Engine に接続できません。docker サービスを確認してください。"
+    docker compose version >/dev/null 2>&1 || die "Docker Compose plugin が見つかりません。"
+}
+
+create_config_if_missing() {
+    if [ -f "${LIMS_CONFIG}" ]; then
+        return
+    fi
+
+    info "設定ファイルを生成します: ${LIMS_CONFIG}"
+    install -d -o root -g lims -m 0750 /etc/lims
+    install -o root -g lims -m 0640 "${LIMS_ENV_TEMPLATE}" "${LIMS_CONFIG}"
+}
+
+load_config() {
+    [ -r "${LIMS_CONFIG}" ] || die "設定ファイルがありません。sudo limsctl init を実行してください。"
+    set -a
+    # shellcheck disable=SC1090
+    . "${LIMS_CONFIG}"
+    set +a
+
+    : "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in ${LIMS_CONFIG}}"
+    : "${MYSQL_DATABASE:?MYSQL_DATABASE must be set in ${LIMS_CONFIG}}"
+    : "${DB_PASSWORD:?DB_PASSWORD must be set in ${LIMS_CONFIG}}"
+    : "${DB_NAME:?DB_NAME must be set in ${LIMS_CONFIG}}"
+    : "${LIMS_DATA_DIR:?LIMS_DATA_DIR must be set in ${LIMS_CONFIG}}"
+}
+
+compose() {
+    docker compose --project-name lims --env-file "${LIMS_CONFIG}" -f "${LIMS_COMPOSE}" "$@"
+}
+
+wait_for_mysql() {
+    local attempt
+
+    info "MySQLの起動を待機しています。"
+    for attempt in $(seq 1 60); do
+        if compose exec -T db mysqladmin ping --silent -h localhost -uroot "-p${MYSQL_ROOT_PASSWORD}" >/dev/null 2>&1; then
+            return
+        fi
+        sleep 2
+    done
+
+    die "MySQLの起動がタイムアウトしました。sudo limsctl logs で確認してください。"
+}
+
+schema_is_present() {
+    local table_count
+
+    table_count="$(compose exec -T db mysql -uroot "-p${MYSQL_ROOT_PASSWORD}" -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${MYSQL_DATABASE}' AND table_name = 'assets_master';")"
+    [ "${table_count}" = "1" ]
+}
+
+ensure_initialized() {
+    [ -f "${LIMS_INITIALIZED_FILE}" ] || die "LIMSは初期化されていません。sudo limsctl init を実行してください。"
+}
+
+start_lims() {
+    require_root start
+    ensure_docker
+    load_config
+    ensure_initialized
+
+    info "LIMSを起動します。"
+    compose up -d --build --remove-orphans
+}
+
+stop_lims() {
+    require_root stop
+
+    if [ ! -f "${LIMS_CONFIG}" ]; then
+        info "LIMSは未初期化です。停止するサービスはありません。"
+        return
+    fi
+
+    ensure_docker
+    load_config
+    info "LIMSを停止します。データディレクトリは保持されます。"
+    compose down --remove-orphans
+}
+
+initialize_lims() {
+    require_root init
+    ensure_docker
+    create_config_if_missing
+    load_config
+
+    if [ -f "${LIMS_INITIALIZED_FILE}" ]; then
+        info "LIMSは既に初期化済みです。既存データを保護するため何も変更しません。"
+        return
+    fi
+
+    install -d -o root -g lims -m 0750 "${LIMS_STATE_DIR}"
+    install -d -o root -g root -m 0750 "${LIMS_DATA_DIR}"
+
+    info "MySQLコンテナを起動します。"
+    compose up -d db
+    wait_for_mysql
+
+    if ! schema_is_present; then
+        die "必要なスキーマが見つかりません。既存データを保護するため初期化を中止しました。"
+    fi
+
+    # MySQLの公式イメージは空のデータディレクトリに限り v3 初期SQLを実行する。
+    # 既存のデータディレクトリではSQLを再実行しないため、再初期化でデータを破壊しない。
+    touch "${LIMS_INITIALIZED_FILE}"
+    if ! systemctl enable --now "${LIMS_SERVICE}"; then
+        rm -f "${LIMS_INITIALIZED_FILE}"
+        die "systemdサービスの起動に失敗しました。"
+    fi
+
+    echo "[OK] 初期セットアップが完了しました。"
+    echo "     ブラウザで http://<server-address>/ を開いてください。"
+}
+
+show_status() {
+    require_root status
+    ensure_docker
+    load_config
+
+    if [ ! -f "${LIMS_INITIALIZED_FILE}" ]; then
+        echo "LIMS: 未初期化"
+        return 3
+    fi
+
+    compose ps
+    systemctl --no-pager --full status "${LIMS_SERVICE}" || true
+}
+
+show_logs() {
+    require_root logs
+    ensure_docker
+    load_config
+    compose logs --tail=200 "$@"
+}
+
+usage() {
+    cat <<'EOF'
+Usage: limsctl {init|start|stop|restart|status|logs}
+
+  init     初期設定、MySQL初期化、サービス自動起動を有効化します
+  start    LIMSを起動します
+  stop     LIMSを停止します（永続データは保持します）
+  restart  LIMSを再起動します
+  status   LIMSの状態を表示します
+  logs     コンテナログを表示します
+EOF
+}
+
+case "${1:-}" in
+    init)
+        [ "$#" -eq 1 ] || die "init は引数を取りません。"
+        initialize_lims
+        ;;
+    start)
+        [ "$#" -eq 1 ] || die "start は引数を取りません。"
+        start_lims
+        ;;
+    stop)
+        [ "$#" -eq 1 ] || die "stop は引数を取りません。"
+        stop_lims
+        ;;
+    restart)
+        [ "$#" -eq 1 ] || die "restart は引数を取りません。"
+        stop_lims
+        start_lims
+        ;;
+    status)
+        [ "$#" -eq 1 ] || die "status は引数を取りません。"
+        show_status
+        ;;
+    logs)
+        shift
+        show_logs "$@"
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 1
+        ;;
+esac

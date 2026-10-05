@@ -1,0 +1,15 @@
+[Unit]
+Description=LIMS Equipment Management System
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+Requires=docker.service
+ConditionPathExists=/var/lib/lims/.initialized
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/limsctl start
+ExecStop=/usr/bin/limsctl stop
+
+[Install]
+WantedBy=multi-user.target

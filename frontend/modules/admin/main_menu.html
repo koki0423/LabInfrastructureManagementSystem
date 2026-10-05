@@ -1,0 +1,32 @@
+<div class="screen-content">
+    <h2>管理者メイン画面</h2>
+    <div id="admin-main-feedback" class="batch-status-banner info page-feedback" hidden></div>
+    <div class="list-state-panel">
+        <div class="list-state-summary">メンテナンスモード</div>
+        <p id="admin-maintenance-status" class="sub-text"></p>
+        <div class="list-condition-actions">
+            <button id="admin-maintenance-toggle-btn" class="secondary-btn" onclick="AdminController.toggleMaintenanceMode()">
+                メンテナンスモードをON
+            </button>
+        </div>
+    </div>
+
+    <div class="menu-grid two-col">
+        <button class="menu-btn" onclick="AdminController.showMasterEditNotice()">
+            マスタ編集<br>
+            <span class="sub-text sub-text-muted">(削除はできません)</span>
+        </button>
+
+        <button class="menu-btn" onclick="Router.to('admin-genres')">
+            備品ジャンル編集
+        </button>
+
+        <button class="menu-btn" onclick="AdminController.toRegister()">
+            ユーザー登録
+        </button>
+    </div>
+
+    <div class="nav-buttons">
+        <button id="admin-logout-btn" class="back-btn" onclick="AdminController.logout()">ログアウト</button>
+    </div>
+</div>

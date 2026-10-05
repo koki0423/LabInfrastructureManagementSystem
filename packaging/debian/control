@@ -1,0 +1,21 @@
+Source: lims-system
+Section: admin
+Priority: optional
+Maintainer: DLab LIMS Maintainers <lims-admin@example.ac.jp>
+Build-Depends:
+ debhelper-compat (= 13),
+ golang-go
+Standards-Version: 4.7.4
+Rules-Requires-Root: no
+
+Package: lims-system
+Architecture: amd64
+Depends:
+ ${misc:Depends},
+ adduser,
+ docker.io | docker-ce,
+ docker-compose-v2 | docker-compose-plugin
+Description: Laboratory equipment management system
+ Equipment management system packaged for Ubuntu 24.04 and later.
+ LIMS is operated with the limsctl management command; Docker Compose and
+ MySQL are internal implementation details.

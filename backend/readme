@@ -1,0 +1,79 @@
+# 依存取得
+go mod tidy
+
+# DB接続文字列をセット（例）
+export DB_DSN="devadmin:X$Q9zB2Wb2x2@tcp(192.168.0.61:3306)/assetdb?parseTime=true&loc=UTC"
+
+# 最小DDLを流す（上のSQLをmysqlに食わせる）
+mysql -u root -p assetdb < quick.sql
+
+# 起動
+go run ./cmd/server
+go run ./cmd/server --config config/config.yaml
+
+# 動作確認は cURL を実行
+
+#廃棄登録動作テスト
+curl -i -X POST "http://localhost:8080/assets/OFS-20250101-0001/disposals" \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":2,"reason":"故障","processed_by_id":"admin-1"}'
+
+# 詳細
+curl -s "http://localhost:8080/disposals/<DISPOSAL_ULID>" | jq
+
+# 一覧（管理番号で）
+curl -s "http://localhost:8080/disposals?management_number=OFS-20250101-0001&order=desc&limit=20" | jq
+
+# 新規登録動作テスト
+# マスタ作成
+curl -i -X POST http://localhost:8080/assets/masters \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ノートPC","management_category_id":1,"genre_id":10,"manufacturer":"Lenovo"}'
+
+# マスタ取得
+curl -s http://localhost:8080/assets/masters?q=OFS-20250901-0001
+
+# マスタ一覧
+curl -s "http://localhost:8080/assets/masters?limit=20&order=desc" | jq
+
+# マスタ更新
+curl -s -X PUT http://localhost:8080/assets/masters/OFS-20250901-0001 \
+  -H "Content-Type: application/json" -d '{"model":"ThinkPad X1"}' | jq
+
+# 在庫行作成（management_number 指定）
+curl -i -X POST http://localhost:8080/assets \
+  -H "Content-Type: application/json" \
+  -d '{"asset_master_id": 1,"quantity":5,"purchased_at":"2025-09-01","status_id":1,"owner":"HQ","default_location":"HQ-01"}'
+
+# 在庫行取得
+curl -s http://localhost:8080/assets/1 | jq
+
+# 在庫行一覧（管理番号で絞り込み）
+curl -s "http://localhost:8080/assets?management_number=OFS-20250901-0001&limit=50" | jq
+
+# 在庫行更新（数量や所在地など）
+curl -s -X PUT http://localhost:8080/assets/1 \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":7,"location":"HQ-02","last_checked_by":"admin","last_checked_at":"2025-09-07T10:00:00Z"}' | jq
+
+# 検索例（/assets/search は複数条件を組み合わせ可能）
+curl -s "http://localhost:8080/assets/search?management_number=OFS-20250901-0001" | jq
+curl -s "http://localhost:8080/assets/search?genre_id=10&status_id=1" | jq
+curl -s "http://localhost:8080/assets/search?q=ThinkPad" | jq
+curl -s "http://localhost:8080/assets/search?manufacturer=Lenovo&model=X1" | jq
+curl -s "http://localhost:8080/assets/search?created_from=2026-01-01&created_to=2026-03-31" | jq
+
+# フロント配信モード
+# external: 既存どおりフロントは別オリジンで配信し、backend は API のみ配信する
+# gin: Gin が埋め込み済みフロント資産を配信し、非 API パスは frontend.index_file へフォールバックする
+
+# config/config.yaml 例
+frontend:
+  mode: "external"
+  index_file: "index.html"
+
+# gin モードの配布用ビルド手順
+# 1. frontend のビルド成果物を internal/app/server/web/dist/ に配置する
+# 2. backend ルートで go build -o server.exe ./cmd/server を実行する
+# 3. 生成された server.exe は frontend を埋め込んだ単一バイナリとして動作する
+# 4. 別設定で起動する場合は server.exe --config <configのパス> を使う

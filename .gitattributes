@@ -1,0 +1,7 @@
+# Package scripts are executed on Ubuntu even when the repository is edited on Windows.
+*.sh text eol=lf
+scripts/limsctl text eol=lf
+packaging/debian/rules text eol=lf
+packaging/debian/*.postinst text eol=lf
+packaging/debian/*.prerm text eol=lf
+packaging/debian/*.postrm text eol=lf

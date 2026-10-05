@@ -1,0 +1,18 @@
+version: 1.2
+mode: "dev"
+tls: false
+database:
+  host: "<DB IP Address>"
+  port: <DB port>
+  user: "<DB user>"
+  password: "<DB password>"
+  dbname: "<DB name>"
+certificate:
+  cert: "<certificate name when tls=true>"
+  key: "<key file name when tls=true>"
+yahoo:
+  app_id: "<yahoo api key>"
+  comments: "Issued at https://developer.yahoo.co.jp/webapi/shopping/v3/itemsearch.html"
+frontend:
+  mode: "external | gin"
+  index_file: "index.html"

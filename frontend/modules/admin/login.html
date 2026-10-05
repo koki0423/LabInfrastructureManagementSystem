@@ -1,0 +1,23 @@
+<div class="screen-content">
+    <h2>管理者ログイン画面</h2>
+    <div id="admin-login-feedback" class="batch-status-banner info page-feedback" hidden></div>
+
+    <form id="form-admin-login" onsubmit="event.preventDefault(); AdminController.login();">
+        <div class="form-group">
+            <label>学籍番号</label>
+            <div class="input-with-btn">
+                <input type="text" name="adminId" id="admin-id" placeholder="スキャンしてください" required>
+                <button type="button" class="nfc-btn" onclick="AdminController.NfcRead()">NFC入力</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>パスワード</label>
+            <input type="password" id="admin-pass" required>
+        </div>
+    </form>
+
+    <div class="nav-buttons">
+        <button id="admin-login-back-btn" class="back-btn" onclick="Router.to('main-menu')">戻る</button>
+        <button id="admin-login-btn" class="primary-btn" onclick="AdminController.login()">ログイン</button>
+    </div>
+</div>

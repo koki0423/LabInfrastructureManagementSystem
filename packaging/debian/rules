@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+
+export GOFLAGS=-buildvcs=false
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	mkdir -p build
+	cd backend && go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o docs
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../build/lims-server ./cmd/server
+
+override_dh_auto_test:
+	cd backend && go test ./...
+
+override_dh_installsystemd:
+	dh_installsystemd --no-start --no-enable

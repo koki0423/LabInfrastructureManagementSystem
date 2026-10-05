@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -eu
+
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null || true
+fi
+
+# /var/lib/lims (特に mysql/) は remove / purge いずれでも削除しない。
+# /etc/lims/lims.env は limsctl が生成する設定であり、Debian conffileではない。
+
+exit 0

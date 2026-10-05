@@ -1,0 +1,184 @@
+<div class="screen-content">
+    <h2>備品参照・編集</h2>
+    <div class="screen-tools-stack">
+        <div id="item-list-feedback" class="batch-status-banner info page-feedback" hidden></div>
+        <div id="item-list-device-status"></div>
+    </div>
+
+    <div class="history-summary-grid item-list-summary-grid">
+        <div class="batch-summary-card">
+            <span>総件数</span>
+            <strong id="item-list-total">-</strong>
+        </div>
+        <div class="batch-summary-card">
+            <span>現在ページ</span>
+            <strong id="item-list-page">-</strong>
+        </div>
+        <div class="batch-summary-card">
+            <span>表示範囲</span>
+            <strong id="item-list-range">-</strong>
+        </div>
+    </div>
+
+    <div id="item-list-filter-controls" class="filters-container">
+        <label>絞り込み:</label>
+        <button class="filter-btn" data-status="1" onclick="ItemListController.toggleFilter('1')">正常</button>
+        <button class="filter-btn" data-status="2" onclick="ItemListController.toggleFilter('2')">故障</button>
+        <button class="filter-btn" data-status="3" onclick="ItemListController.toggleFilter('3')">修理中</button>
+        <button class="filter-btn" data-status="4" onclick="ItemListController.toggleFilter('4')">貸出中</button>
+        <button class="filter-btn" data-status="5" onclick="ItemListController.toggleFilter('5')">廃棄済み</button>
+        <button class="filter-btn" data-status="6" onclick="ItemListController.toggleFilter('6')">紛失</button>
+    </div>
+
+    <div class="history-toolbar item-list-toolbar">
+        <div class="rows-per-page history-rows-per-page">
+            <label>表示件数:</label>
+            <select id="item-list-per-page" onchange="ItemListController.changePerPage(this.value)">
+                <option value="10">10件</option>
+                <option value="20" selected>20件</option>
+                <option value="50">50件</option>
+                <option value="100">100件</option>
+            </select>
+        </div>
+
+        <div id="pagination-controls" class="pagination-controls history-pagination"></div>
+    </div>
+
+    <div class="history-list-shell history-table-shell item-list-table-shell">
+        <table class="history-record-table item-list-record-table">
+            <thead>
+                <tr>
+                    <th>備品番号</th>
+                    <th>備品名</th>
+                    <th>数量</th>
+                    <th>状態</th>
+                    <th class="history-action-cell">操作</th>
+                </tr>
+            </thead>
+            <tbody id="item-list-body">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="nav-buttons">
+        <button class="back-btn" onclick="Router.back('main-menu')">戻る</button>
+    </div>
+</div>
+
+<div id="edit-modal" class="modal-overlay" hidden>
+    <div class="modal-window item-edit-modal-window">
+        <h3>備品詳細・編集</h3>
+
+        <form id="form-item-edit" onsubmit="event.preventDefault(); ItemListController.update();">
+            <input type="hidden" id="edit-asset-id">
+            <input type="hidden" id="edit-status-original">
+            <div id="item-list-edit-feedback" class="batch-status-banner info page-feedback" hidden></div>
+
+            <div class="info-block">
+                <h4>マスタ情報 (変更不可)</h4>
+                <div class="form-group">
+                    <label>備品名</label>
+                    <input type="text" id="edit-name" readonly class="readonly-input">
+                </div>
+                <div class="form-group">
+                    <label>管理番号</label>
+                    <input type="text" id="edit-code" readonly class="readonly-input">
+                </div>
+                <div class="form-group">
+                    <label>シリアル番号</label>
+                    <input type="text" id="edit-serial" readonly class="readonly-input">
+                </div>
+                <div class="form-group">
+                    <label>現在の貸出先/場所</label>
+                    <input type="text" id="disp-current-location" readonly class="readonly-input">
+                </div>
+            </div>
+
+            <div class="info-block">
+                <h4>管理状態</h4>
+                <div class="form-group">
+                    <label>数量 <span id="qty-lock-msg" class="quantity-lock-msg" hidden>(個別管理のため変更不可)</span></label>
+                    <input type="number" id="edit-qty" min="1">
+                </div>
+                <div class="form-group">
+                    <label>ステータス</label>
+                    <select id="edit-status">
+                        <option value="1">正常</option>
+                        <option value="2">故障</option>
+                        <option value="3">修理中</option>
+                        <!-- 貸出中と廃棄済みは一貫性のためにモーダルから選択できないようにする -->
+                        <!-- <option value="4">貸出中</option> -->
+                        <!-- <option value="5">廃棄済み</option> -->
+                        <option value="6">紛失</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>標準保管場所</label>
+                    <input type="text" id="edit-location">
+                </div>
+                <div class="form-group">
+                    <label>備考</label>
+                    <input type="text" id="edit-notes">
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button type="button" class="back-btn" onclick="ItemListController.closeModal()">閉じる</button>
+                <button id="item-update-btn" type="submit" class="primary-btn">更新登録</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="label-modal" class="modal-overlay" hidden>
+  <div class="modal-window">
+    <h3>ラベル印刷</h3>
+
+    <form id="form-label-print" onsubmit="event.preventDefault(); ItemListController.submitLabelPrint();">
+      <input type="hidden" id="label-mgmt-number">
+      <div id="item-list-label-feedback" class="batch-status-banner info page-feedback" hidden></div>
+      <div id="item-list-label-device-status"></div>
+
+      <div class="info-block">
+        <h4>印刷対象</h4>
+        <div class="form-group">
+          <label>管理番号</label>
+          <input type="text" id="label-target-display" readonly class="readonly-input">
+        </div>
+      </div>
+
+      <div class="info-block">
+        <h4>ラベル設定</h4>
+
+        <div class="form-group">
+          <label>コード種別</label>
+          <select id="label-code-type">
+            <option value="QR" selected>QRコード</option>
+            <option value="CODE128">バーコード(Code128)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>テープ幅</label>
+          <select id="label-tape-width">
+            <option value="9" selected>9 mm</option>
+            <option value="12">12 mm</option>
+            <option value="18">18 mm</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="label-halfcut" checked disabled>
+            ハーフカットを有効にする
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-buttons">
+        <button type="button" class="back-btn" onclick="ItemListController.closeLabelModal()">閉じる</button>
+        <button type="submit" class="primary-btn" id="label-print-btn">印刷</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -eu
+
+if ! getent group lims >/dev/null 2>&1; then
+    addgroup --system lims
+fi
+
+if ! getent passwd lims >/dev/null 2>&1; then
+    adduser \
+        --system \
+        --ingroup lims \
+        --home /var/lib/lims \
+        --no-create-home \
+        --shell /usr/sbin/nologin \
+        lims
+fi
+
+install -d -o root -g lims -m 0750 /var/lib/lims
+install -d -o root -g lims -m 0750 /etc/lims
+
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null || true
+fi
+
+cat <<'EOF'
+
+LIMSパッケージのインストールが完了しました。
+
+次のコマンドで初期セットアップを実行してください。
+
+  sudo limsctl init
+
+EOF
+
+exit 0

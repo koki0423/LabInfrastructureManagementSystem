@@ -1,0 +1,228 @@
+package auth
+
+import (
+	"net/http"
+
+	"IRIS-backend/internal/platform/httpx"
+
+	"github.com/gin-gonic/gin"
+)
+
+type AuthHandler struct{ svc AuthService }
+
+func RegisterPublicRoutes(r gin.IRoutes, svc AuthService) {
+	h := &AuthHandler{svc: svc}
+	r.POST("/login", h.Login)
+}
+
+func RegisterAuthenticatedRoutes(r gin.IRoutes, svc AuthService) {
+	h := &AuthHandler{svc: svc}
+	r.GET("/me", h.Me)
+}
+
+func RegisterAdminRoutes(r gin.IRoutes, svc AuthService) {
+	h := &AuthHandler{svc: svc}
+	r.POST("/register", h.Register)
+	r.DELETE("/accounts/:id", h.DeleteAccount)
+	r.PATCH("/accounts/:id", h.ChangeUsername)
+}
+
+// ===== API Responses for Swagger =====
+
+// TokenResponse represents a successful login response with a JWT token.
+type TokenResponse struct {
+	Token   string `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5c..."`
+	Message string `json:"message" example:"Login successful"`
+}
+
+// MessageResponse represents a generic success message.
+type MessageResponse struct {
+	Message string `json:"message" example:"success"`
+}
+
+type MeResponse struct {
+	UserID       string   `json:"user_id" example:"sys-super-admin"`
+	Roles        []string `json:"roles" example:"super_admin"`
+	Capabilities []string `json:"capabilities" example:"assets.admin"`
+}
+
+// ErrorResponse represents an error response.
+type ErrorResponse struct {
+	Error struct {
+		Code    string `json:"code" example:"INVALID_ARGUMENT"`
+		Message string `json:"message" example:"error message"`
+	} `json:"error"`
+}
+
+type LoginRequest struct {
+	ID       string `json:"id" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// @Summary      Login user
+// @Description  Authenticates a user and returns a JWT token.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body LoginRequest true "Login credentials"
+// @Success      200 {object} TokenResponse "Login successful"
+// @Failure      400 {object} ErrorResponse "Invalid request"
+// @Failure      401 {object} ErrorResponse "IDまたはパスワードが間違っています"
+// @Router       /login [post]
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.WriteError(c, http.StatusBadRequest, "INVALID_ARGUMENT", "Invalid request")
+		return
+	}
+
+	token, err := h.svc.Login(c.Request.Context(), req.ID, req.Password)
+	if err != nil {
+		httpx.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "IDまたはパスワードが間違っています")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":   token,
+		"message": "Login successful",
+	})
+}
+
+type RegisterRequest struct {
+	ID       string  `json:"id" binding:"required"`
+	Password string  `json:"password" binding:"required"`
+	Role     *string `json:"role,omitempty"` // 未指定なら user
+}
+
+/*
+テスト用ユーザー
+{
+    "id":"sys-computer-admin",
+    "password":"4mH36",
+    "role":"computer_admin"
+}
+	sys-super-admin / 4mH36
+*/
+
+// @Summary      Get current authenticated user
+// @Description  Returns the authenticated account roles and capabilities.
+// @Tags         auth
+// @Produce      json
+// @Success      200 {object} MeResponse
+// @Failure      401 {object} ErrorResponse "Unauthorized"
+// @Security     BearerAuth
+// @Router       /me [get]
+func (h *AuthHandler) Me(c *gin.Context) {
+	principal, ok := GetPrincipal(c)
+	if !ok {
+		httpx.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	c.JSON(http.StatusOK, principal)
+}
+
+// @Summary      Register a new user
+// @Description  Registers a new account.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body RegisterRequest true "Registration details"
+// @Success      201 {object} MessageResponse "Registered successfully"
+// @Failure      400 {object} ErrorResponse "Invalid request"
+// @Failure      409 {object} ErrorResponse "ID already exists"
+// @Failure      500 {object} ErrorResponse "register failed"
+// @Router       /register [post]
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.WriteError(c, http.StatusBadRequest, "INVALID_ARGUMENT", "Invalid request")
+		return
+	}
+
+	role := "user"
+	if req.Role != nil && *req.Role != "" {
+		role = *req.Role
+	}
+
+	if err := h.svc.Register(c.Request.Context(), req.ID, req.Password, role); err != nil {
+		if err == ErrAlreadyExists {
+			httpx.WriteError(c, http.StatusConflict, "CONFLICT", "ID already exists")
+			return
+		}
+		if err == ErrInvalidRole {
+			httpx.WriteError(c, http.StatusBadRequest, "INVALID_ARGUMENT", "invalid role")
+			return
+		}
+		httpx.WriteError(c, http.StatusInternalServerError, "INTERNAL", "register failed")
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "registered"})
+}
+
+// @Summary      Delete an account
+// @Description  Deletes an account by its ID.
+// @Tags         auth
+// @Produce      json
+// @Param        id path string true "Account ID"
+// @Success      200 {object} MessageResponse "Deleted successfully"
+// @Failure      404 {object} ErrorResponse "Not found"
+// @Failure      500 {object} ErrorResponse "delete failed"
+// @Router       /accounts/{id} [delete]
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	id := c.Param("id")
+
+	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+		if err == ErrNotFound {
+			httpx.WriteError(c, http.StatusNotFound, "NOT_FOUND", "not found")
+			return
+		}
+		httpx.WriteError(c, http.StatusInternalServerError, "INTERNAL", "delete failed")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
+type ChangeUsernameRequest struct {
+	NewID string `json:"new_id" binding:"required"`
+}
+
+// @Summary      Change username (ID)
+// @Description  Changes the ID of an existing account.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Current Account ID"
+// @Param        request body ChangeUsernameRequest true "New ID details"
+// @Success      200 {object} MessageResponse "Username changed successfully"
+// @Failure      400 {object} ErrorResponse "Invalid request"
+// @Failure      404 {object} ErrorResponse "Not found"
+// @Failure      409 {object} ErrorResponse "New ID already exists"
+// @Failure      500 {object} ErrorResponse "change id failed"
+// @Router       /accounts/{id} [patch]
+func (h *AuthHandler) ChangeUsername(c *gin.Context) {
+	oldID := c.Param("id")
+
+	var req ChangeUsernameRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.WriteError(c, http.StatusBadRequest, "INVALID_ARGUMENT", "Invalid request")
+		return
+	}
+
+	if err := h.svc.ChangeID(c.Request.Context(), oldID, req.NewID); err != nil {
+		if err == ErrNotFound {
+			httpx.WriteError(c, http.StatusNotFound, "NOT_FOUND", "not found")
+			return
+		}
+		if err == ErrAlreadyExists {
+			httpx.WriteError(c, http.StatusConflict, "CONFLICT", "new id already exists")
+			return
+		}
+		httpx.WriteError(c, http.StatusInternalServerError, "INTERNAL", "change id failed")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "username changed"})
+}

@@ -1,0 +1,5 @@
+lims-system (1.0.0) stable; urgency=medium
+
+  * Initial monorepo package release.
+
+ -- DLab LIMS Maintainers <lims-admin@example.ac.jp>  Mon, 05 Oct 2026 18:00:00 +0900

@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: LIMS Equipment Management System
+
+Files: *
+Copyright: DLab LIMS Maintainers
+License: proprietary
+ Internal-use software. Redistribution is not permitted without permission
+ from the copyright holder.
