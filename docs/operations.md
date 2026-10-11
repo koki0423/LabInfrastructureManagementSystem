@@ -8,7 +8,9 @@
 - `backend`: パッケージ内の静的Goバイナリを実行するコンテナ。
 - `frontend`: nginxで静的フロントエンドを配信し、`/api/` と `/swagger/` をbackendへ中継するコンテナ。
 
-初期SQLは `lims-init.sql` を使用します。DB名は既存設定との互換性のため `lims_v2` を維持しています。SQLはMySQLのデータディレクトリが空の場合にのみ公式イメージにより実行されます。
+初期SQLは `lims-init.sql` を使用します。DB名は既存設定との互換性のため `lims_v2` を維持しています。SQLはMySQLのデータディレクトリが空の場合にのみ公式イメージにより実行されます。初期SQLは固定の初期管理者を投入せず、初期管理者は `limsctl init` が安全な乱数パスワードとbcryptハッシュを使って作成します。
+
+`limsctl init` の最後に表示される初期管理者（`sys-super-admin`）の一時パスワードは、DB・設定ファイル・ログには保存されず、再表示できません。紛失時は、root権限で `sudo limsctl inituser <ユーザー名>` を実行します。確認入力後、指定アカウントを作成または有効化し、既存のグループ・ロールを維持したまま `super_admin` を追加して、新しい一時パスワードを一度だけ表示します。
 
 `/etc/lims/lims.env` は引継ぎ要件により平文のパスワードを含みます。所有者を`root:lims`、権限を`0640`にし、不要な閲覧権限を与えないでください。
 
@@ -52,4 +54,4 @@ sudo test -d /var/lib/lims/mysql
 
 ## 更新時の扱い
 
-`postinst` はユーザー作成、ディレクトリ作成、案内表示だけを行い、コンテナ起動・DB初期化・migrationは実行しません。更新後は `sudo limsctl restart` を実行します。v1.0.0には初回SQL以外のmigrationはないため、将来のスキーマ変更時は、データを破壊しない専用migrationを`limsctl`に追加します。
+`postinst` はユーザー作成、ディレクトリ作成、案内表示だけを行い、コンテナ起動・DB初期化・migrationは実行しません。更新後は `sudo limsctl restart` を実行します。既存DBの初期管理者は更新で自動変更されないため、旧版から更新した環境では `sudo limsctl inituser sys-super-admin` を実行して初期管理者パスワードを再発行してください。別ユーザーの作成または復旧が必要な場合は、`sudo limsctl inituser <ユーザー名>` を実行します。v1.0.0には初回SQL以外のmigrationはないため、将来のスキーマ変更時は、データを破壊しない専用migrationを`limsctl`に追加します。

@@ -12,7 +12,7 @@ sudo apt install lims-system
 sudo limsctl init
 ```
 
-`init` は初回のみ、設定の作成、MySQLの初期化、backend/frontendの起動、OS起動時の自動起動を行います。初期化済みの場合は既存のデータを変更せず終了します。
+`init` は初回のみ、設定の作成、MySQLの初期化、初期管理者の発行、backend/frontendの起動、OS起動時の自動起動を行います。初期化の最後に表示される初期管理者の一時パスワードは再表示できないため、安全な場所に記録してください。初期化済みの場合は既存のデータを変更せず終了します。
 
 管理コマンドは以下です。
 
@@ -22,7 +22,12 @@ sudo limsctl stop
 sudo limsctl restart
 sudo limsctl status
 sudo limsctl logs
+sudo limsctl inituser <ユーザー名>
 ```
+
+`inituser` は、初期パスワードを失った場合などにroot権限の運用者が管理者を復旧するためのコマンドです。指定ユーザーを作成または有効化し、`super_admin` 権限と新しい一時パスワードを付与します。同名アカウントがある場合は既存のグループ・ロールを保持したままパスワードを再発行します。
+
+旧版から更新した環境では、`sudo limsctl inituser sys-super-admin` を実行して既存の初期管理者パスワードを再発行してください。
 
 パッケージの削除や更新では `/var/lib/lims/mysql` のMySQLデータを削除しません。
 

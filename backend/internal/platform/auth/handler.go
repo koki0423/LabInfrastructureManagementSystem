@@ -94,16 +94,6 @@ type RegisterRequest struct {
 	Role     *string `json:"role,omitempty"` // 未指定なら user
 }
 
-/*
-テスト用ユーザー
-{
-    "id":"sys-computer-admin",
-    "password":"4mH36",
-    "role":"computer_admin"
-}
-	sys-super-admin / 4mH36
-*/
-
 // @Summary      Get current authenticated user
 // @Description  Returns the authenticated account roles and capabilities.
 // @Tags         auth
