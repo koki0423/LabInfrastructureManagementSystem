@@ -1,5 +1,5 @@
 -- LIMS v2 schema initialization
--- Derived from lims_v1-init.sql and extended with group/role authorization.
+-- Current monorepo initialization schema. Derived from lims_v1-init.sql and extended with group/role authorization.
 
 SET NAMES utf8mb4;
 SET @OLD_TIME_ZONE = @@TIME_ZONE;

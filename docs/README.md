@@ -16,7 +16,7 @@
 
 ## データベース資料
 
-以下は旧バージョンのスキーマ仕様です。現行パッケージの初期化には `deploy/DB/init/lims_v3-init.sql` を使用します。
+以下は旧バージョンのスキーマ仕様です。現行パッケージの初期化には `deploy/DB/init/lims-init.sql` を使用します。
 
 - [LIMS v1 DB仕様](database/lims_v1-db-spec.md)
 - [LIMS v2 DB仕様](database/lims_v2-db-spec.md)
