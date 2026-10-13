@@ -18,6 +18,14 @@
     margin-top: 0;
 }
 
+.item-list-record-table {
+    min-width: 900px;
+}
+
+.item-list-record-table .item-list-serial-cell {
+    min-width: 160px;
+}
+
 .item-list-record-table .item-list-qty-cell,
 .item-list-record-table .item-list-status-cell {
     text-align: center;

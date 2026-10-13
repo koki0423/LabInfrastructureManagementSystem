@@ -250,7 +250,7 @@ async function loadItemPage(page = 1) {
         updateItemListSummary();
 
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="5" class="table-empty-state table-empty-state-error">データの取得に失敗しました</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state table-empty-state-error">データの取得に失敗しました</td></tr>';
         }
     } finally {
         if (loader) {
@@ -740,7 +740,7 @@ function renderList() {
     updateItemListSummary();
 
     if (itemListState.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="table-empty-state">該当する備品はありません</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">該当する備品はありません</td></tr>';
         if (paginationDiv) {
             paginationDiv.innerHTML = '';
         }
@@ -752,6 +752,9 @@ function renderList() {
         const statusObj = STATUS_MAP[statusId] || { name: '不明', class: 'badge-gray' };
         const displayId = item.management_number || item.asset_id || '-';
         const displayName = item.name || `(マスタID: ${item.asset_master_id})`;
+        const displaySerial = typeof item.serial === 'string' && item.serial.trim() !== ''
+            ? item.serial
+            : '-';
         const displayQty = item.quantity === undefined || item.quantity === null || item.quantity === ''
             ? '-'
             : String(item.quantity);
@@ -760,6 +763,7 @@ function renderList() {
             <tr>
                 <td>${escapeHtml(displayId)}</td>
                 <td>${escapeHtml(displayName)}</td>
+                <td class="item-list-serial-cell">${escapeHtml(displaySerial)}</td>
                 <td class="item-list-qty-cell">${escapeHtml(displayQty)}</td>
                 <td class="item-list-status-cell">
                     <span class="status-badge ${statusObj.class}">${statusObj.name}</span>
