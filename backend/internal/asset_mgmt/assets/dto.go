@@ -12,12 +12,12 @@ type CreateAssetMasterRequest struct {
 	Model                *string `json:"model,omitempty"`
 }
 
-type UpdateAssetMasterRequest struct {
-	Name                 *string `json:"name,omitempty"`
-	ManagementCategoryID *uint   `json:"management_category_id,omitempty"`
-	GenreID              *uint   `json:"genre_id,omitempty"`
-	Manufacturer         *string `json:"manufacturer,omitempty"`
-	Model                *string `json:"model,omitempty"`
+// AdminAssetMasterEditRequest は、管理者画面から備品マスタと個体の識別情報を
+// まとめて更新するためのリクエストです。シリアル番号は空文字で送ると未設定に戻せます。
+type AdminAssetMasterEditRequest struct {
+	Name    string  `json:"name" binding:"required"`
+	Serial  *string `json:"serial" binding:"required"`
+	GenreID uint    `json:"genre_id" binding:"required"`
 }
 
 type CreateAssetRequest struct {

@@ -1,0 +1,80 @@
+<div class="screen-content">
+    <h2>備品マスタ編集</h2>
+    <div id="admin-master-edit-feedback" class="batch-status-banner info page-feedback" hidden></div>
+
+    <form id="admin-master-search-form" class="admin-master-search-form" onsubmit="event.preventDefault(); AdminController.searchMasterEditTargets();">
+        <div class="form-group">
+            <label for="admin-master-search-query">管理番号・備品名・シリアル番号</label>
+            <div class="input-with-btn">
+                <input id="admin-master-search-query" type="search" maxlength="256" required placeholder="例: OFS-20261013-00042 / ThinkPad / ABC123">
+                <button id="admin-master-search-btn" type="submit" class="primary-btn">検索</button>
+            </div>
+        </div>
+    </form>
+
+    <p class="sub-text">編集する個体を選択してください。備品名とジャンルは、同じ管理番号を持つ備品に共通して反映されます。</p>
+
+    <div class="history-list-shell admin-master-edit-table-shell">
+        <table class="history-record-table admin-master-edit-table">
+            <thead>
+                <tr>
+                    <th>管理番号</th>
+                    <th>備品名</th>
+                    <th>シリアル番号</th>
+                    <th>ジャンル</th>
+                    <th class="history-action-cell">操作</th>
+                </tr>
+            </thead>
+            <tbody id="admin-master-search-results">
+                <tr><td colspan="5" class="table-empty-state">検索条件を入力してください</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="nav-buttons">
+        <button id="admin-master-edit-back-btn" class="back-btn" onclick="Router.to('admin-main')">戻る</button>
+    </div>
+</div>
+
+<div id="admin-master-edit-modal" class="modal-overlay" hidden>
+    <div class="modal-window admin-master-edit-modal-window">
+        <h3>備品マスタを編集</h3>
+        <form id="admin-master-edit-form" onsubmit="event.preventDefault(); AdminController.saveMasterEdit();">
+            <div id="admin-master-edit-modal-feedback" class="batch-status-banner info page-feedback" hidden></div>
+
+            <div class="info-block">
+                <h4>対象</h4>
+                <div class="form-group">
+                    <label for="admin-master-edit-current-number">現在の管理番号</label>
+                    <input id="admin-master-edit-current-number" type="text" readonly class="readonly-input">
+                </div>
+            </div>
+
+            <div class="info-block">
+                <h4>編集内容</h4>
+                <div class="form-group">
+                    <label for="admin-master-edit-name">備品名</label>
+                    <input id="admin-master-edit-name" type="text" maxlength="256" required>
+                </div>
+                <div class="form-group">
+                    <label for="admin-master-edit-serial">シリアル番号</label>
+                    <input id="admin-master-edit-serial" type="text" maxlength="64" placeholder="未設定に戻す場合は空欄">
+                </div>
+                <div class="form-group">
+                    <label for="admin-master-edit-genre">ジャンル（管理番号プレフィックス）</label>
+                    <select id="admin-master-edit-genre" required onchange="AdminController.updateManagementNumberPreview()"></select>
+                </div>
+                <div class="form-group">
+                    <label for="admin-master-edit-next-number">変更後の管理番号</label>
+                    <input id="admin-master-edit-next-number" type="text" readonly class="readonly-input">
+                </div>
+                <p class="admin-master-edit-warning">ジャンルを変更すると、現物に貼付済みの旧管理番号ラベルは使用できなくなります。更新後にラベルを再発行してください。</p>
+            </div>
+
+            <div class="modal-buttons">
+                <button type="button" class="back-btn" onclick="AdminController.closeMasterEditModal()">キャンセル</button>
+                <button id="admin-master-edit-save-btn" type="submit" class="primary-btn">更新する</button>
+            </div>
+        </form>
+    </div>
+</div>

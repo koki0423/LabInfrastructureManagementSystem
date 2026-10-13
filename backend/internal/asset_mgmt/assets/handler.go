@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"IRIS-backend/internal/platform/auth"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +23,6 @@ func RegisterRoutes(r gin.IRoutes, svc *Service) {
 	r.POST("/assets/masters", h.CreateAssetMaster)
 	r.GET("/assets/masters", h.ListAssetMasters)
 	r.GET("/assets/masters/:management_number", h.GetAssetMaster)
-	r.PUT("/assets/masters/:management_number", h.UpdateAssetMaster)
 
 	// assets
 	r.POST("/assets", h.CreateAsset)
@@ -39,6 +40,12 @@ func RegisterRoutes(r gin.IRoutes, svc *Service) {
 
 	// JANコード検索
 	r.GET("/assets/lookup/:jan_code", h.LookupJAN)
+}
+
+// RegisterAdminRoutes registers asset edit operations that require assets.admin.
+func RegisterAdminRoutes(r gin.IRoutes, svc *Service) {
+	h := &Handler{svc: svc}
+	r.PUT("/assets/:asset_id/master-edit", h.UpdateAssetMasterEdit)
 }
 
 // ===== masters =====
@@ -121,30 +128,51 @@ func (h *Handler) ListAssetMasters(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items, "total": total, "next_offset": nextOffset(total, p)})
 }
 
-// @Summary      Update an asset master
-// @Description  Update details of an existing asset master.
-// @Tags         assets-masters
+// @Summary      Edit an asset master and instance identification data
+// @Description  Updates the asset name, serial number, genre, and the genre-code prefix of the management number in one transaction. Requires assets.admin.
+// @Tags         assets-admin
 // @Accept       json
 // @Produce      json
-// @Param        management_number path string true "Management Number"
-// @Param        assetMaster body UpdateAssetMasterRequest true "Fields to update"
-// @Success      200 {object} AssetMasterResponse
-// @Failure      400 {object} ErrorResponse "Invalid input"
-// @Failure      404 {object} ErrorResponse "Asset master not found"
+// @Security     BearerAuth
+// @Param        asset_id path int true "Asset ID"
+// @Param        assetMasterEdit body AdminAssetMasterEditRequest true "Master and asset identification fields"
+// @Success      200 {object} AssetSetResponse
+// @Failure      400 {object} ErrorResponse "Invalid input or inactive genre"
+// @Failure      401 {object} ErrorResponse "Authentication required"
+// @Failure      403 {object} ErrorResponse "Administrator permission required"
+// @Failure      404 {object} ErrorResponse "Asset or genre not found"
+// @Failure      409 {object} ErrorResponse "Management number conflict"
 // @Failure      500 {object} ErrorResponse "Internal server error"
-// @Router       /assets/masters/{management_number} [put]
-func (h *Handler) UpdateAssetMaster(c *gin.Context) {
-	mng := c.Param("management_number")
-	var req UpdateAssetMasterRequest
+// @Router       /admin/assets/{asset_id}/master-edit [put]
+func (h *Handler) UpdateAssetMasterEdit(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("asset_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apiErr(CodeInvalidArgument, "invalid asset_id"))
+		return
+	}
+
+	var req AdminAssetMasterEditRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apiErr(CodeInvalidArgument, "invalid json"))
 		return
 	}
-	res, err := h.svc.UpdateAssetMaster(c.Request.Context(), mng, req)
+
+	res, err := h.svc.EditAssetMasterIdentification(c.Request.Context(), id, req)
 	if err != nil {
 		c.JSON(toHTTPStatus(err), apiErrFrom(err))
 		return
 	}
+	actor := "unknown"
+	if principal, ok := auth.GetPrincipal(c); ok {
+		actor = principal.UserID
+	}
+	log.Printf(
+		"admin asset master edit succeeded: actor=%s asset_id=%d asset_master_id=%d management_number=%s",
+		actor,
+		res.Asset.AssetID,
+		res.Master.AssetMasterID,
+		res.Master.ManagementNumber,
+	)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -284,6 +312,10 @@ func (h *Handler) UpdateAsset(c *gin.Context) {
 	var req UpdateAssetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apiErr(CodeInvalidArgument, "invalid json"))
+		return
+	}
+	if req.Serial != nil {
+		c.JSON(http.StatusForbidden, apiErr(CodeForbidden, "serial must be updated through the administrator master edit endpoint"))
 		return
 	}
 	res, err := h.svc.UpdateAsset(c.Request.Context(), id, req)

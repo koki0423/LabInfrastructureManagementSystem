@@ -2,3 +2,29 @@
     color: #999;
     background: #eee;
 }
+
+.admin-master-search-form {
+    max-width: 720px;
+}
+
+.admin-master-edit-table-shell {
+    margin-top: 20px;
+}
+
+.admin-master-edit-table {
+    min-width: 900px;
+}
+
+.admin-master-edit-modal-window {
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.admin-master-edit-warning {
+    margin: 12px 0 0;
+    color: #8a4f00;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}

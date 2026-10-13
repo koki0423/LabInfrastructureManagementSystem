@@ -1,5 +1,5 @@
 import { Router } from '../../js/router.js';
-import { API } from '../../js/api.js?v=20260707-1';
+import { API } from '../../js/api.js?v=20261013-1';
 import { AppState } from '../../js/app_state.js';
 import { escapeHtml } from '../../js/dom_utils.js';
 import { setAuthToken, setAuthProfile, clearAuthSession, hasCapability } from '../../js/auth_session.js?v=20260707-1';
@@ -11,7 +11,11 @@ import { hidePageFeedback, showApiPageFeedback, showPageFeedback } from '../../j
 const adminState = {
     genres: [],
     flash: null,
-    genreLoading: false
+    genreLoading: false,
+    masterSearchResults: [],
+    masterSearchLoading: false,
+    masterEditSaving: false,
+    masterEditIndex: -1
 };
 let maintenanceStorageListenerBound = false;
 
@@ -24,7 +28,9 @@ function getActiveAdminFeedbackId() {
         'admin-login-feedback',
         'admin-main-feedback',
         'admin-register-feedback',
-        'admin-genres-feedback'
+        'admin-genres-feedback',
+        'admin-master-edit-feedback',
+        'admin-master-edit-modal-feedback'
     ].find((id) => document.getElementById(id)) || '';
 }
 
@@ -69,6 +75,93 @@ function setGenreControlsLoading(isLoading) {
         '#genre-list-body .sm-btn',
         '#admin-genres-back-btn'
     ], isLoading);
+}
+
+function getGenreId(genre) {
+    return Number(genre?.id ?? genre?.genre_id);
+}
+
+function getGenreName(genre) {
+    return String(genre?.name ?? genre?.genre_name ?? '-');
+}
+
+function getGenreCode(genre) {
+    return String(genre?.code ?? genre?.genre_code ?? '');
+}
+
+function isGenreDisabled(genre) {
+    return genre?.is_disabled === true || Number(genre?.is_disabled) === 1;
+}
+
+function getMasterEditTarget() {
+    const index = adminState.masterEditIndex;
+    if (!Number.isInteger(index) || index < 0) {
+        return null;
+    }
+    return adminState.masterSearchResults[index] || null;
+}
+
+function replaceManagementNumberPrefix(managementNumber, genreCode) {
+    const number = String(managementNumber || '').trim();
+    const code = String(genreCode || '').trim();
+    const separatorIndex = number.indexOf('-');
+    if (!code || separatorIndex <= 0 || separatorIndex === number.length - 1) {
+        return number;
+    }
+    return `${code}${number.slice(separatorIndex)}`;
+}
+
+function setMasterSearchControlsLoading(isLoading) {
+    adminState.masterSearchLoading = isLoading;
+    setControlsDisabled([
+        '#admin-master-search-query',
+        '#admin-master-search-btn',
+        '#admin-master-search-results .sm-btn',
+        '#admin-master-edit-back-btn'
+    ], isLoading);
+}
+
+function setMasterEditControlsLoading(isLoading) {
+    adminState.masterEditSaving = isLoading;
+    setControlsDisabled([
+        '#admin-master-edit-form input',
+        '#admin-master-edit-form select',
+        '#admin-master-edit-form .back-btn'
+    ], isLoading);
+}
+
+function renderMasterSearchResults() {
+    const tbody = document.getElementById('admin-master-search-results');
+    if (!tbody) {
+        return;
+    }
+
+    if (adminState.masterSearchResults.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty-state">該当する備品はありません</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = adminState.masterSearchResults.map((assetSet, index) => {
+        const master = assetSet?.master || {};
+        const asset = assetSet?.asset || {};
+        const genre = adminState.genres.find((entry) => getGenreId(entry) === Number(master.genre_id));
+        const genreLabel = genre
+            ? `${getGenreName(genre)} (${getGenreCode(genre)})${isGenreDisabled(genre) ? '・無効' : ''}`
+            : '-';
+        const managementNumber = master.management_number || asset.management_number || '-';
+
+        return `
+            <tr>
+                <td>${escapeHtml(managementNumber)}</td>
+                <td>${escapeHtml(master.name || asset.name || '-')}</td>
+                <td>${escapeHtml(asset.serial || '-')}</td>
+                <td>${escapeHtml(genreLabel)}</td>
+                <td>
+                    <button class="sm-btn" onclick="AdminController.openMasterEditByIndex(${index})">編集</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function renderMaintenanceModeState() {
@@ -204,8 +297,8 @@ window.AdminController = {
         Router.to('admin-register');
     },
 
-    showMasterEditNotice() {
-        showPageFeedback('admin-main-feedback', 'マスタ編集は未実装です。必要に応じて機能追加します。', 'info');
+    toMasterEdit() {
+        Router.to('admin-master-edit');
     },
 
     async toggleMaintenanceMode() {
@@ -312,6 +405,227 @@ window.AdminController = {
         if (view === 'genres') {
             consumeAdminFlash('genres', 'admin-genres-feedback');
             await this.renderGenreList();
+            return;
+        }
+
+        if (view === 'master-edit') {
+            consumeAdminFlash('master-edit', 'admin-master-edit-feedback');
+            try {
+                adminState.genres = await AppState.loadGenres({ all: true, force: true });
+            } catch (error) {
+                console.error(error);
+                showApiPageFeedback('admin-master-edit-feedback', error, 'ジャンル一覧の取得に失敗しました。');
+            }
+        }
+    },
+
+    async searchMasterEditTargets() {
+        if (adminState.masterSearchLoading || adminState.masterEditSaving) {
+            return;
+        }
+
+        const input = document.getElementById('admin-master-search-query');
+        const query = input?.value.trim() || '';
+        hidePageFeedback('admin-master-edit-feedback');
+
+        if (!query) {
+            showPageFeedback('admin-master-edit-feedback', '管理番号・備品名・シリアル番号のいずれかを入力してください。', 'error');
+            return;
+        }
+
+        setMasterSearchControlsLoading(true);
+        try {
+            const response = await API.assets.search({ q: query });
+            adminState.masterSearchResults = Array.isArray(response)
+                ? response
+                : (Array.isArray(response?.items) ? response.items : []);
+            renderMasterSearchResults();
+        } catch (error) {
+            console.error(error);
+            adminState.masterSearchResults = [];
+            renderMasterSearchResults();
+            showApiPageFeedback('admin-master-edit-feedback', error, '備品の検索に失敗しました。');
+        } finally {
+            setMasterSearchControlsLoading(false);
+        }
+    },
+
+    async openMasterEditByIndex(index) {
+        if (adminState.masterSearchLoading || adminState.masterEditSaving) {
+            return;
+        }
+
+        const target = adminState.masterSearchResults[index];
+        const master = target?.master;
+        const asset = target?.asset;
+        if (!master || !asset) {
+            showPageFeedback('admin-master-edit-feedback', '対象データが見つかりません。', 'error');
+            return;
+        }
+
+        try {
+            if (adminState.genres.length === 0) {
+                adminState.genres = await AppState.loadGenres({ all: true, force: true });
+            }
+
+            const currentGenreID = Number(master.genre_id);
+            const genreSelect = document.getElementById('admin-master-edit-genre');
+            if (!genreSelect) {
+                return;
+            }
+
+            const selectableGenres = adminState.genres.filter((genre) => (
+                !isGenreDisabled(genre) || getGenreId(genre) === currentGenreID
+            ));
+            genreSelect.innerHTML = selectableGenres.map((genre) => {
+                const id = getGenreId(genre);
+                const isCurrent = id === currentGenreID;
+                const stateLabel = isGenreDisabled(genre) ? '（現在は無効）' : '';
+                return `<option value="${id}"${isCurrent ? ' selected' : ''}>${escapeHtml(`${getGenreName(genre)} (${getGenreCode(genre)})${stateLabel}`)}</option>`;
+            }).join('');
+
+            adminState.masterEditIndex = index;
+            document.getElementById('admin-master-edit-current-number').value = master.management_number || asset.management_number || '';
+            document.getElementById('admin-master-edit-name').value = master.name || asset.name || '';
+            document.getElementById('admin-master-edit-serial').value = asset.serial || '';
+            hidePageFeedback('admin-master-edit-modal-feedback');
+            this.updateManagementNumberPreview();
+
+            const modal = document.getElementById('admin-master-edit-modal');
+            if (modal) {
+                modal.hidden = false;
+            }
+        } catch (error) {
+            console.error(error);
+            showApiPageFeedback('admin-master-edit-feedback', error, '編集画面の準備に失敗しました。');
+        }
+    },
+
+    updateManagementNumberPreview() {
+        const target = getMasterEditTarget();
+        const nextNumberInput = document.getElementById('admin-master-edit-next-number');
+        const genreSelect = document.getElementById('admin-master-edit-genre');
+        if (!target || !nextNumberInput || !genreSelect) {
+            return;
+        }
+
+        const master = target.master || {};
+        const asset = target.asset || {};
+        const genre = adminState.genres.find((entry) => getGenreId(entry) === Number(genreSelect.value));
+        nextNumberInput.value = replaceManagementNumberPrefix(
+            master.management_number || asset.management_number,
+            getGenreCode(genre)
+        );
+    },
+
+    closeMasterEditModal() {
+        if (adminState.masterEditSaving) {
+            return;
+        }
+
+        const modal = document.getElementById('admin-master-edit-modal');
+        if (modal) {
+            modal.hidden = true;
+        }
+        adminState.masterEditIndex = -1;
+    },
+
+    async saveMasterEdit() {
+        if (adminState.masterEditSaving) {
+            return;
+        }
+
+        const target = getMasterEditTarget();
+        const form = document.getElementById('admin-master-edit-form');
+        if (!target || !form) {
+            showPageFeedback('admin-master-edit-feedback', '対象データが見つかりません。', 'error');
+            return;
+        }
+
+        hidePageFeedback('admin-master-edit-modal-feedback');
+        if (!form.reportValidity()) {
+            showPageFeedback('admin-master-edit-modal-feedback', '入力内容を確認してください。', 'error');
+            return;
+        }
+
+        const master = target.master || {};
+        const asset = target.asset || {};
+        const name = document.getElementById('admin-master-edit-name').value.trim();
+        const serial = document.getElementById('admin-master-edit-serial').value.trim();
+        const genreID = Number(document.getElementById('admin-master-edit-genre').value);
+        const genre = adminState.genres.find((entry) => getGenreId(entry) === genreID);
+        const currentGenreID = Number(master.genre_id);
+
+        if (!genre || !Number.isInteger(genreID) || genreID <= 0) {
+            showPageFeedback('admin-master-edit-modal-feedback', '変更先ジャンルを選択してください。', 'error');
+            return;
+        }
+        if (isGenreDisabled(genre) && genreID !== currentGenreID) {
+            showPageFeedback('admin-master-edit-modal-feedback', '無効なジャンルへ変更することはできません。', 'error');
+            return;
+        }
+
+        const currentNumber = master.management_number || asset.management_number || '';
+        const nextNumber = replaceManagementNumberPrefix(currentNumber, getGenreCode(genre));
+        const confirmed = await confirmAction({
+            title: '備品マスタ更新確認',
+            message: `備品名・シリアル番号・ジャンルを更新しますか？\n管理番号: ${currentNumber} → ${nextNumber}\nジャンルを変更した場合は、旧管理番号のラベルを再発行してください。`,
+            confirmLabel: '更新する',
+            cancelLabel: 'キャンセル',
+            tone: 'warning'
+        });
+        if (!confirmed) {
+            return;
+        }
+
+        setMasterEditControlsLoading(true);
+        try {
+            const response = await runWithButtonLoading('#admin-master-edit-save-btn', { busyText: '更新中...' }, async () => (
+                API.assets.updateMasterEdit(asset.asset_id, {
+                    name,
+                    serial,
+                    genre_id: genreID
+                })
+            ));
+
+            const updatedMaster = response?.master;
+            const updatedAsset = response?.asset;
+            if (updatedMaster && updatedAsset) {
+                adminState.masterSearchResults = adminState.masterSearchResults.map((assetSet) => {
+                    const candidateMaster = assetSet?.master || {};
+                    const candidateAsset = assetSet?.asset || {};
+                    if (Number(candidateMaster.asset_master_id) !== Number(updatedMaster.asset_master_id)) {
+                        return assetSet;
+                    }
+
+                    return {
+                        ...assetSet,
+                        master: { ...candidateMaster, ...updatedMaster },
+                        asset: {
+                            ...candidateAsset,
+                            ...(Number(candidateAsset.asset_id) === Number(updatedAsset.asset_id) ? updatedAsset : {}),
+                            management_number: updatedMaster.management_number
+                        }
+                    };
+                });
+            }
+
+            renderMasterSearchResults();
+            const modal = document.getElementById('admin-master-edit-modal');
+            if (modal) {
+                modal.hidden = true;
+            }
+            adminState.masterEditIndex = -1;
+            showPageFeedback(
+                'admin-master-edit-feedback',
+                `更新しました。管理番号: ${currentNumber} → ${nextNumber}`,
+                'success'
+            );
+        } catch (error) {
+            console.error(error);
+            showApiPageFeedback('admin-master-edit-modal-feedback', error, '更新に失敗しました。');
+        } finally {
+            setMasterEditControlsLoading(false);
         }
     },
 

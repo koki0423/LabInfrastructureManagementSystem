@@ -102,6 +102,12 @@ export const API = {
         // 名前で検索 (クエリパラメータで渡す)
         searchByName: (name) => client.get(`/api/v2/assets/search?name=${encodeURIComponent(name)}`),
 
+        // 管理番号・備品名・シリアル番号などを横断検索
+        search: (params) => client.get('/api/v2/assets/search', { params }),
+
+        // 管理者専用: 備品マスタと対象個体の識別情報を一括更新
+        updateMasterEdit: (assetId, payload) => client.put(`/api/v2/admin/assets/${assetId}/master-edit`, payload),
+
         // JANコード検索
         lookupJAN: (janCode) => client.get(`/api/v2/assets/lookup/${janCode}`),
     },

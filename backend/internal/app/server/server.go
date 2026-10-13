@@ -119,7 +119,8 @@ func registerAPIRoutes(r *gin.Engine, conn *sql.DB, cfg *db.Config) {
 	janClient := assets.NewJANClient(cfg.Yahoo.AppID)
 	authService := auth.NewService(conn)
 
-	assets.RegisterRoutes(api, assets.NewService(conn, janClient))
+	assetService := assets.NewService(conn, janClient)
+	assets.RegisterRoutes(api, assetService)
 	lend.RegisterRoutes(api, lend.NewService(conn))
 	disposals.RegisterRoutes(api, disposals.NewService(conn))
 	printLabels.RegisterRoutes(api, printLabels.NewService())
@@ -140,6 +141,7 @@ func registerAPIRoutes(r *gin.Engine, conn *sql.DB, cfg *db.Config) {
 
 	admin := authenticated.Group("/admin")
 	admin.Use(auth.RequireCapability(auth.CapabilityAssetsAdmin))
+	assets.RegisterAdminRoutes(admin, assetService)
 	admin.GET("/auth-ping", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 }
 

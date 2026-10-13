@@ -1,7 +1,7 @@
 import { getAuthToken, hasAllCapabilities } from './auth_session.js?v=20260707-1';
 import { isMaintenanceModeEnabled } from './maintenance_mode.js';
 
-const MODULE_VERSION = '20260707-1';
+const MODULE_VERSION = '20261013-3';
 
 const loadRegistrationModule = () => import('../modules/registration/logic.js');
 const loadDisposalModule = () => import('../modules/disposal/logic.js');
@@ -265,6 +265,15 @@ const routes = {
         requiredCapabilities: ['assets.admin'],
         loader: loadAdminModule,
         init: (module) => module.initAdmin('genres')
+    },
+    'admin-master-edit': {
+        path: 'modules/admin/master_edit.html',
+        title: '備品マスタ編集',
+        allowDuringMaintenance: true,
+        loginRoute: 'admin-login',
+        requiredCapabilities: ['assets.admin'],
+        loader: loadAdminModule,
+        init: (module) => module.initAdmin('master-edit')
     },
 
 };

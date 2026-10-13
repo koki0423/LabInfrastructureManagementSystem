@@ -62,3 +62,19 @@ func TestNormalizeUpdateAssetRequestConvertsUTC(t *testing.T) {
 		t.Fatalf("expected last_checked_at UTC, got %v", got.LastCheckedAt)
 	}
 }
+
+func TestReplaceManagementNumberPrefixPreservesDateAndSequence(t *testing.T) {
+	got, err := replaceManagementNumberPrefix("OFS-20261013-00042", "LAB")
+	if err != nil {
+		t.Fatalf("replaceManagementNumberPrefix returned error: %v", err)
+	}
+	if want := "LAB-20261013-00042"; got != want {
+		t.Fatalf("management number = %q, want %q", got, want)
+	}
+}
+
+func TestReplaceManagementNumberPrefixRejectsInvalidSource(t *testing.T) {
+	if _, err := replaceManagementNumberPrefix("OFS", "LAB"); err == nil {
+		t.Fatal("expected invalid management number error")
+	}
+}

@@ -92,45 +92,112 @@ func (s *Store) GetMasterIDByMng(ctx context.Context, mng string) (uint64, error
 	return id, nil
 }
 
-func (s *Store) UpdateMasterByMng(ctx context.Context, mng string, in UpdateAssetMasterRequest) (*AssetMasterResponse, error) {
-	// 動的アップデート
-	sets := []string{}
-	args := []any{}
-	if in.Name != nil {
-		sets = append(sets, "name = ?")
-		args = append(args, *in.Name)
-	}
-	if in.ManagementCategoryID != nil {
-		sets = append(sets, "management_category_id = ?")
-		args = append(args, *in.ManagementCategoryID)
-	}
-	if in.GenreID != nil {
-		sets = append(sets, "genre_id = ?")
-		args = append(args, *in.GenreID)
-	}
-	if in.Manufacturer != nil {
-		sets = append(sets, "manufacturer = ?")
-		args = append(args, *in.Manufacturer)
-	}
-	if in.Model != nil {
-		sets = append(sets, "model = ?")
-		args = append(args, *in.Model)
-	}
-	if len(sets) == 0 {
-		// 変更なしでも現行値を返す
-		return s.GetMasterByMng(ctx, mng)
-	}
-	args = append(args, mng)
-	q := fmt.Sprintf(`UPDATE assets_master SET %s WHERE management_number = ?`, strings.Join(sets, ", "))
-
-	res, err := s.db.ExecContext(ctx, q, args...)
+// UpdateAssetMasterIdentificationTx updates the selected asset's serial number and
+// its master identification fields together. The genre and master rows are locked
+// while the new management-number prefix is checked and applied.
+func (s *Store) UpdateAssetMasterIdentificationTx(
+	ctx context.Context,
+	assetID uint64,
+	name string,
+	serial string,
+	genreID uint,
+) (*AssetSetResponse, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, err
 	}
-	if aff, _ := res.RowsAffected(); aff == 0 {
-		return nil, sql.ErrNoRows
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var masterID uint64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT asset_master_id
+		FROM assets
+		WHERE asset_id = ?
+		FOR UPDATE`, assetID).Scan(&masterID); err != nil {
+		return nil, err
 	}
-	return s.GetMasterByMng(ctx, mng)
+
+	var currentGenreID uint
+	var currentManagementNumber string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT genre_id, management_number
+		FROM assets_master
+		WHERE asset_master_id = ?
+		FOR UPDATE`, masterID).Scan(&currentGenreID, &currentManagementNumber); err != nil {
+		return nil, err
+	}
+
+	var genreCode string
+	var genreDisabled bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT genre_code, is_disabled
+		FROM asset_genres
+		WHERE genre_id = ?
+		FOR UPDATE`, genreID).Scan(&genreCode, &genreDisabled); err != nil {
+		return nil, err
+	}
+	if genreDisabled && genreID != currentGenreID {
+		return nil, ErrInvalid("target genre is disabled")
+	}
+
+	newManagementNumber, err := replaceManagementNumberPrefix(currentManagementNumber, genreCode)
+	if err != nil {
+		return nil, err
+	}
+
+	if newManagementNumber != currentManagementNumber {
+		var conflictingMasterID uint64
+		err := tx.QueryRowContext(ctx, `
+			SELECT asset_master_id
+			FROM assets_master
+			WHERE management_number = ? AND asset_master_id <> ?
+			LIMIT 1
+			FOR UPDATE`, newManagementNumber, masterID).Scan(&conflictingMasterID)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+		if err == nil {
+			return nil, ErrConflict("management_number already exists")
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE assets_master
+		SET name = ?, genre_id = ?, management_number = ?
+		WHERE asset_master_id = ?`, name, genreID, newManagementNumber, masterID); err != nil {
+		return nil, err
+	}
+
+	var serialValue any
+	if serial != "" {
+		serialValue = serial
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE assets
+		SET serial = ?
+		WHERE asset_id = ?`, serialValue, assetID); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+
+	master, err := s.GetMasterByID(ctx, masterID)
+	if err != nil {
+		return nil, err
+	}
+	asset, err := s.GetAssetByID(ctx, assetID)
+	if err != nil {
+		return nil, err
+	}
+	return &AssetSetResponse{Master: *master, Asset: *asset}, nil
 }
 
 func (s *Store) ListMasters(ctx context.Context, p Page, q AssetSearchQuery) ([]AssetMasterResponse, int64, error) {

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	mysql "github.com/go-sql-driver/mysql"
 	ulid "github.com/oklog/ulid/v2"
@@ -101,15 +102,46 @@ func (s *Service) ListAssetMasters(ctx context.Context, p Page, q AssetSearchQue
 	return items, total, nil
 }
 
-func (s *Service) UpdateAssetMaster(ctx context.Context, managementNumber string, in UpdateAssetMasterRequest) (AssetMasterResponse, error) {
-	out, err := s.store.UpdateMasterByMng(ctx, managementNumber, in)
+// EditAssetMasterIdentification updates the administrator-managed identification fields.
+// The master and selected asset are changed atomically so that a serial number and a
+// management-number prefix cannot become out of sync with the selected genre.
+func (s *Service) EditAssetMasterIdentification(ctx context.Context, assetID uint64, in AdminAssetMasterEditRequest) (AssetSetResponse, error) {
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return AssetSetResponse{}, ErrInvalid("name is required")
+	}
+	if utf8.RuneCountInString(name) > 256 {
+		return AssetSetResponse{}, ErrInvalid("name must be 256 characters or fewer")
+	}
+	if in.Serial == nil {
+		return AssetSetResponse{}, ErrInvalid("serial is required")
+	}
+	serial := strings.TrimSpace(*in.Serial)
+	if utf8.RuneCountInString(serial) > 64 {
+		return AssetSetResponse{}, ErrInvalid("serial must be 64 characters or fewer")
+	}
+	if in.GenreID == 0 {
+		return AssetSetResponse{}, ErrInvalid("genre_id is required")
+	}
+
+	out, err := s.store.UpdateAssetMasterIdentificationTx(ctx, assetID, name, serial, in.GenreID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return AssetMasterResponse{}, ErrNotFound("master not found")
+			return AssetSetResponse{}, ErrNotFound("asset or genre not found")
 		}
-		return AssetMasterResponse{}, err
+		return AssetSetResponse{}, err
 	}
 	return *out, nil
+}
+
+func replaceManagementNumberPrefix(managementNumber, genreCode string) (string, error) {
+	managementNumber = strings.TrimSpace(managementNumber)
+	genreCode = strings.TrimSpace(genreCode)
+	separator := strings.Index(managementNumber, "-")
+	if genreCode == "" || separator <= 0 || separator == len(managementNumber)-1 {
+		return "", ErrInvalid("management_number has an invalid format")
+	}
+	return genreCode + managementNumber[separator:], nil
 }
 
 // ===== Assets =====
