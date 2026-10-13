@@ -112,11 +112,10 @@ const routes = {
     // === 貸出・返却 ===
     'lend-return-top': { path: 'modules/lend_return/top.html', title: '借りる・返す' },
 
-    // 貸出フロー
-    'lend-menu': { path: 'modules/lend_return/lend_menu.html', title: '借りる' },
+    // 借用フロー
     'lend-history': {
         path: 'modules/lend_return/lend_history.html',
-        title: '貸出履歴',
+        title: '借りた履歴',
         loader: loadLendReturnModule,
         init: (module) => module.initLendReturn('lend-history')
     },
@@ -134,10 +133,9 @@ const routes = {
     },
 
     // 返却フロー
-    'return-menu': { path: 'modules/lend_return/return_menu.html', title: '返す' },
     'return-history': {
         path: 'modules/lend_return/return_history.html',
-        title: '返却履歴',
+        title: '返した履歴',
         loader: loadLendReturnModule,
         init: (module) => module.initLendReturn('return-history')
     },

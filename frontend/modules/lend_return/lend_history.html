@@ -1,5 +1,5 @@
 <div class="screen-content">
-    <h2>貸出履歴</h2>
+    <h2>借りた履歴</h2>
     <div class="history-summary-grid">
         <div class="batch-summary-card">
             <span>総件数</span>
@@ -78,13 +78,13 @@
     </div>
 
     <div class="nav-buttons">
-        <button class="back-btn" onclick="Router.to('lend-menu')">戻る</button>
+        <button class="back-btn" onclick="Router.to('lend-return-top')">戻る</button>
     </div>
 </div>
 
 <div id="lend-history-detail-modal" class="modal-overlay" hidden>
     <div class="modal-window history-detail-modal-window">
-        <h3 id="lend-history-detail-title">貸出履歴詳細</h3>
+        <h3 id="lend-history-detail-title">借りた履歴詳細</h3>
         <div id="lend-history-detail-content"></div>
         <div class="modal-buttons">
             <button type="button" id="lend-history-detail-close-btn" class="back-btn" onclick="LendReturnController.closeLendHistoryDetail()">閉じる</button>

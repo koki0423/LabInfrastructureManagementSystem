@@ -1,5 +1,5 @@
 <div class="screen-content">
-    <h2>返却履歴</h2>
+    <h2>返した履歴</h2>
 
     <div class="history-summary-grid">
         <div class="batch-summary-card">
@@ -71,13 +71,13 @@
     </div>
 
     <div class="nav-buttons">
-        <button class="back-btn" onclick="Router.to('return-menu')">戻る</button>
+        <button class="back-btn" onclick="Router.to('lend-return-top')">戻る</button>
     </div>
 </div>
 
 <div id="return-history-detail-modal" class="modal-overlay" hidden>
     <div class="modal-window history-detail-modal-window">
-        <h3 id="return-history-detail-title">返却履歴詳細</h3>
+        <h3 id="return-history-detail-title">返した履歴詳細</h3>
         <div id="return-history-detail-content"></div>
         <div class="modal-buttons">
             <button type="button" id="return-history-detail-close-btn" class="back-btn" onclick="LendReturnController.closeReturnHistoryDetail()">閉じる</button>

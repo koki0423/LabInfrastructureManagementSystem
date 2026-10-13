@@ -542,7 +542,7 @@ function getHistoryViewConfig(type) {
             detailModalId: 'return-history-detail-modal',
             detailContentId: 'return-history-detail-content',
             detailCloseId: 'return-history-detail-close-btn',
-            emptyTitle: '返却履歴がありません',
+            emptyTitle: '返した履歴がありません',
             emptyDescription: '返却処理がまだ登録されていないか、表示対象の履歴がありません。'
         };
     }
@@ -570,8 +570,8 @@ function getHistoryViewConfig(type) {
         detailModalId: 'lend-history-detail-modal',
         detailContentId: 'lend-history-detail-content',
         detailCloseId: 'lend-history-detail-close-btn',
-        emptyTitle: '貸出履歴がありません',
-        emptyDescription: '貸出処理がまだ登録されていないか、表示対象の履歴がありません。'
+        emptyTitle: '借りた履歴がありません',
+        emptyDescription: '借りた記録がまだないか、表示対象の履歴がありません。'
     };
 }
 
@@ -1022,7 +1022,7 @@ function renderLendHistory() {
         setHistoryStatus(
             'lend',
             hasActiveHistoryQuery(lendState.history.query)
-                ? '絞り込み条件に一致する貸出履歴はありません。'
+                ? '絞り込み条件に一致する借りた履歴はありません。'
                 : `${getLendHistoryFilterLabel(lendState.history.filter)}の履歴はありません。`,
             'info'
         );
@@ -1033,7 +1033,7 @@ function renderLendHistory() {
     setHistoryStatus(
         'lend',
         hasActiveHistoryQuery(lendState.history.query)
-            ? `絞り込み条件に一致する貸出履歴を ${lendState.history.totalItems}件表示しています。`
+            ? `絞り込み条件に一致する借りた履歴を ${lendState.history.totalItems}件表示しています。`
             : `${getLendHistoryFilterLabel(lendState.history.filter)}の履歴を ${lendState.history.totalItems}件表示しています。`,
         'success'
     );
@@ -1059,8 +1059,8 @@ function renderReturnHistory() {
         setHistoryStatus(
             'return',
             hasActiveHistoryQuery(returnState.history.query)
-                ? '絞り込み条件に一致する返却履歴はありません。'
-                : '表示できる返却履歴はありません。',
+                ? '絞り込み条件に一致する返した履歴はありません。'
+                : '表示できる返した履歴はありません。',
             'info'
         );
         return;
@@ -1070,8 +1070,8 @@ function renderReturnHistory() {
     setHistoryStatus(
         'return',
         hasActiveHistoryQuery(returnState.history.query)
-            ? `絞り込み条件に一致する返却履歴を ${returnState.history.totalItems}件表示しています。`
-            : `${returnState.history.totalItems}件の返却履歴を表示しています。`,
+            ? `絞り込み条件に一致する返した履歴を ${returnState.history.totalItems}件表示しています。`
+            : `${returnState.history.totalItems}件の返した履歴を表示しています。`,
         'success'
     );
     renderHistoryPagination(pagination, returnState.history.totalPages, returnState.history.currentPage, 'return');
@@ -1251,8 +1251,8 @@ window.LendReturnController = {
                             clearHistory: true
                         },
                         {
-                            label: '借りるメニューへ戻る',
-                            routeKey: 'lend-menu',
+                            label: '借りる・返すメニューへ戻る',
+                            routeKey: 'lend-return-top',
                             style: 'back-btn',
                             clearHistory: true
                         }
@@ -1439,8 +1439,8 @@ window.LendReturnController = {
                             clearHistory: true
                         },
                         {
-                            label: '返すメニューへ戻る',
-                            routeKey: 'return-menu',
+                            label: '借りる・返すメニューへ戻る',
+                            routeKey: 'lend-return-top',
                             style: 'back-btn',
                             clearHistory: true
                         }
@@ -1618,7 +1618,7 @@ window.LendReturnController = {
             return;
         }
 
-        setHistoryStatus('lend', '貸出履歴を読み込んでいます。', 'info');
+        setHistoryStatus('lend', '借りた履歴を読み込んでいます。', 'info');
         list.innerHTML = renderHistoryLoadingState();
         updateHistorySummary('lend', {
             ...lendState.history,
@@ -1661,8 +1661,8 @@ window.LendReturnController = {
             renderLendHistory();
         } catch (error) {
             console.error('loadLendHistory error:', error);
-            list.innerHTML = renderHistoryEmptyState('貸出履歴を読み込めませんでした', '時間をおいて再度お試しください。');
-            setHistoryStatus('lend', '貸出履歴の読み込みに失敗しました。', 'error');
+            list.innerHTML = renderHistoryEmptyState('借りた履歴を読み込めませんでした', '時間をおいて再度お試しください。');
+            setHistoryStatus('lend', '借りた履歴の読み込みに失敗しました。', 'error');
             updateHistorySummary('lend', {
                 ...lendState.history,
                 totalItems: 0,
@@ -1683,7 +1683,7 @@ window.LendReturnController = {
             return;
         }
 
-        setHistoryStatus('return', '返却履歴を読み込んでいます。', 'info');
+        setHistoryStatus('return', '返した履歴を読み込んでいます。', 'info');
         list.innerHTML = renderHistoryLoadingState();
         updateHistorySummary('return', {
             ...returnState.history,
@@ -1720,8 +1720,8 @@ window.LendReturnController = {
             renderReturnHistory();
         } catch (error) {
             console.error('loadReturnHistory error:', error);
-            list.innerHTML = renderHistoryEmptyState('返却履歴を読み込めませんでした', '時間をおいて再度お試しください。');
-            setHistoryStatus('return', '返却履歴の読み込みに失敗しました。', 'error');
+            list.innerHTML = renderHistoryEmptyState('返した履歴を読み込めませんでした', '時間をおいて再度お試しください。');
+            setHistoryStatus('return', '返した履歴の読み込みに失敗しました。', 'error');
             updateHistorySummary('return', {
                 ...returnState.history,
                 totalItems: 0,

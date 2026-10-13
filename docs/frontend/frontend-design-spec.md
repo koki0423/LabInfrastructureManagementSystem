@@ -159,8 +159,9 @@
 | まとめて登録 | `reg-batch-select`, `reg-batch-simple`, `reg-batch-table`, `reg-batch` |
 | 廃棄 | `disposal-top`, `disposal-input`, `disposal-confirm`, `disposal-history` |
 | 備品参照 | `item-list` |
-| 貸出 | `lend-return-top`, `lend-menu`, `lend-input`, `lend-confirm`, `lend-history` |
-| 返却 | `return-menu`, `return-search`, `return-select`, `return-input`, `return-confirm`, `return-history` |
+| 借りる・返す | `lend-return-top` |
+| 借りる | `lend-input`, `lend-confirm`, `lend-history` |
+| 返す | `return-search`, `return-select`, `return-input`, `return-confirm`, `return-history` |
 | 検索 | `search-top`, `search-list`, `search-result` |
 | 共通完了 | `complete` |
 | 管理者 | `admin-login`, `admin-main`, `admin-register`, `admin-genres` |
@@ -484,13 +485,15 @@
 
 ### 8.6 機材を借りる・返す
 
+起点画面では、借りる・返す・借りた履歴・返した履歴を2列2行で表示する。借りる、返す、各履歴はそれぞれの画面を直接開く。
+
 #### 借りる
 
 画面:
 
 - 借りる
 - 借りる内容の確認
-- 貸出履歴
+- 借りた履歴
 
 入力項目:
 
@@ -530,7 +533,7 @@ API:
 - 返す機材を探す
 - 返す機材を選ぶ
 - 返す内容の確認
-- 返却履歴
+- 返した履歴
 
 検索仕様:
 
@@ -746,8 +749,8 @@ UI上で選択可能なテープ幅:
 適用箇所:
 
 - 備品一覧
-- 貸出履歴
-- 返却履歴
+- 借りた履歴
+- 返した履歴
 - 廃棄履歴
 
 ## 13. 完了画面とフィードバック設計
