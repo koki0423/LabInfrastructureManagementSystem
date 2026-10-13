@@ -41,6 +41,9 @@ docker run --rm \
         cp -a /source/. /work/lims-system/
         cd /work/lims-system
         cp -a packaging/debian debian
+        # Docker Desktop の bind mount では通常ファイルにも実行ビットが付くことがある。
+        # debhelper が executable な *.install をスクリプトとして実行しないよう正規化する。
+        find . -type f -exec chmod a-x {} +
         chmod +x debian/rules debian/lims-system.postinst debian/lims-system.prerm debian/lims-system.postrm scripts/limsctl
         if [[ -n "${DEB_VERSION:-}" ]]; then
             sed -E -i "1s/^lims-system \\([^)]+\\)/lims-system (${DEB_VERSION})/" debian/changelog
