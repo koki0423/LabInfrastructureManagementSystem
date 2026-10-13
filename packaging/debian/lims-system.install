@@ -4,6 +4,6 @@ deploy/docker-compose.yml                 usr/share/lims/
 deploy/backend.Dockerfile                 usr/share/lims/
 deploy/lims.env.example                   usr/share/lims/examples/
 deploy/nginx/default.conf                 usr/share/lims/nginx/
-deploy/DB/init/lims_v3-init.sql           usr/share/lims/db/
+deploy/DB/init/lims-init.sql              usr/share/lims/db/
 frontend/*                                usr/share/lims/frontend/
 debian/lims.service                       lib/systemd/system/

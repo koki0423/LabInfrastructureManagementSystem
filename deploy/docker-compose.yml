@@ -8,7 +8,7 @@ services:
       TZ: UTC
     volumes:
       - ${LIMS_DATA_DIR:?LIMS_DATA_DIR must be set}:/var/lib/mysql
-      - /usr/share/lims/db/lims_v3-init.sql:/docker-entrypoint-initdb.d/10-lims_v3-init.sql:ro
+      - /usr/share/lims/db/lims-init.sql:/docker-entrypoint-initdb.d/10-lims-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -uroot -Nse 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s

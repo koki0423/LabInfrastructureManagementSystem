@@ -8,6 +8,7 @@ readonly LIMS_INITIALIZED_FILE="${LIMS_STATE_DIR}/.initialized"
 readonly LIMS_COMPOSE="/usr/share/lims/docker-compose.yml"
 readonly LIMS_ENV_TEMPLATE="/usr/share/lims/examples/lims.env.example"
 readonly LIMS_SERVICE="lims.service"
+readonly LIMS_DEFAULT_ADMIN_ID="sys-super-admin"
 
 die() {
     echo "[ERROR] $*" >&2
@@ -61,6 +62,12 @@ mysql_root_query() {
         mysql --protocol=TCP -h 127.0.0.1 -uroot "-p${MYSQL_ROOT_PASSWORD}" -Nse "$1"
 }
 
+bootstrap_admin() {
+    local account_id="$1"
+
+    compose run --rm --no-deps --build backend bootstrap-admin --username "${account_id}"
+}
+
 wait_for_mysql() {
     local attempt
 
@@ -87,6 +94,23 @@ schema_is_present() {
 
 ensure_initialized() {
     [ -f "${LIMS_INITIALIZED_FILE}" ] || die "LIMSは初期化されていません。sudo limsctl init を実行してください。"
+}
+
+validate_admin_id() {
+    local account_id="$1"
+
+    [[ "${account_id}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || die "ユーザー名は英数字で始まる64文字以下の英数字、ハイフン、アンダースコア、ピリオドで指定してください。"
+}
+
+confirm_admin_reset() {
+    local account_id="$1"
+    local confirmation
+
+    [ -t 0 ] || die "inituser は対話可能な端末から実行してください。"
+    echo "[WARN] ユーザー '${account_id}' を作成または復旧し、super_admin 権限を付与します。"
+    echo "[WARN] 同名の既存アカウントがある場合は、パスワードを再発行して有効化します。"
+    read -r -p "続行するにはユーザー名 '${account_id}' を入力してください: " confirmation
+    [ "${confirmation}" = "${account_id}" ] || die "確認が一致しないため中止しました。"
 }
 
 start_lims() {
@@ -135,8 +159,13 @@ initialize_lims() {
         die "必要なスキーマが見つかりません。既存データを保護するため初期化を中止しました。"
     fi
 
-    # MySQLの公式イメージは空のデータディレクトリに限り v3 初期SQLを実行する。
+    # MySQLの公式イメージは空のデータディレクトリに限り初期SQLを実行する。
     # 既存のデータディレクトリではSQLを再実行しないため、再初期化でデータを破壊しない。
+    info "初期管理者アカウントを作成しています。"
+    if ! bootstrap_admin "${LIMS_DEFAULT_ADMIN_ID}"; then
+        die "初期管理者アカウントの作成に失敗しました。"
+    fi
+
     touch "${LIMS_INITIALIZED_FILE}"
     if ! systemctl enable --now "${LIMS_SERVICE}"; then
         rm -f "${LIMS_INITIALIZED_FILE}"
@@ -145,6 +174,26 @@ initialize_lims() {
 
     echo "[OK] 初期セットアップが完了しました。"
     echo "     ブラウザで http://<server-address>/ を開いてください。"
+}
+
+initialize_user() {
+    local account_id="$1"
+
+    require_root inituser
+    ensure_docker
+    load_config
+    ensure_initialized
+    validate_admin_id "${account_id}"
+    confirm_admin_reset "${account_id}"
+
+    info "MySQLコンテナを起動します。"
+    compose up -d db
+    wait_for_mysql
+
+    info "初期管理者アカウントを作成または復旧しています。"
+    if ! bootstrap_admin "${account_id}"; then
+        die "初期管理者アカウントの作成または復旧に失敗しました。"
+    fi
 }
 
 show_status() {
@@ -170,14 +219,15 @@ show_logs() {
 
 usage() {
     cat <<'EOF'
-Usage: limsctl {init|start|stop|restart|status|logs}
+Usage: limsctl {init|inituser|start|stop|restart|status|logs}
 
-  init     初期設定、MySQL初期化、サービス自動起動を有効化します
-  start    LIMSを起動します
-  stop     LIMSを停止します（永続データは保持します）
-  restart  LIMSを再起動します
-  status   LIMSの状態を表示します
-  logs     コンテナログを表示します
+  init                 初期設定、初期管理者の発行、サービス自動起動を有効化します
+  inituser <ユーザー名> 指定ユーザーをsuper_adminとして作成または復旧し、一時パスワードを発行します
+  start                LIMSを起動します
+  stop                 LIMSを停止します（永続データは保持します）
+  restart              LIMSを再起動します
+  status               LIMSの状態を表示します
+  logs                 コンテナログを表示します
 EOF
 }
 
@@ -185,6 +235,10 @@ case "${1:-}" in
     init)
         [ "$#" -eq 1 ] || die "init は引数を取りません。"
         initialize_lims
+        ;;
+    inituser)
+        [ "$#" -eq 2 ] || die "inituser はユーザー名を1つ指定してください。"
+        initialize_user "$2"
         ;;
     start)
         [ "$#" -eq 1 ] || die "start は引数を取りません。"

@@ -32,6 +32,58 @@ func NewStore(db *sql.DB) AccountStore {
 	return &Store{db: db}
 }
 
+// BootstrapSuperAdmin creates or recovers an administrator. Existing group and
+// role assignments are preserved; the super_admin role is added when missing.
+func (s *Store) BootstrapSuperAdmin(ctx context.Context, id, passwordHash string) (err error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	const selectRoleID = `
+SELECT role_id
+FROM auth_roles
+WHERE role_code = ? AND is_disabled = 0
+LIMIT 1
+`
+	var roleID uint64
+	if err = tx.QueryRowContext(ctx, selectRoleID, RoleSuperAdmin).Scan(&roleID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidRole
+		}
+		return err
+	}
+
+	const upsertAccount = `
+INSERT INTO auth_accounts (id, password_hash, role, is_disabled, created_at)
+VALUES (?, ?, ?, 0, UTC_TIMESTAMP(6))
+ON DUPLICATE KEY UPDATE
+  password_hash = VALUES(password_hash),
+  role = VALUES(role),
+  is_disabled = 0
+`
+	if _, err = tx.ExecContext(ctx, upsertAccount, id, passwordHash, RoleSuperAdmin); err != nil {
+		return err
+	}
+
+	const ensureRoleAssignment = `
+INSERT INTO auth_account_roles (account_id, role_id, assigned_at)
+VALUES (?, ?, UTC_TIMESTAMP(6))
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id)
+`
+	if _, err = tx.ExecContext(ctx, ensureRoleAssignment, id, roleID); err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	return err
+}
+
 func (s *Store) GetByID(ctx context.Context, id string) (*Account, error) {
 	const q = `
 SELECT id, password_hash, role, is_disabled, created_at
