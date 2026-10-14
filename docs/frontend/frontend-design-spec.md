@@ -569,8 +569,11 @@ API:
 
 #### 検索方式
 
-- 管理番号検索
-- 備品名部分一致検索
+- フリーワード検索（管理番号・備品名・メーカー・型番・シリアル番号の部分一致）
+- ジャンル・状態による絞り込み
+- 管理番号の完全一致、メーカー、型番、シリアル番号、管理者/利用者、現在地、定位置による詳細条件
+- 購入日の範囲指定
+- 指定した条件はすべてAND条件として検索
 
 #### 挙動
 
@@ -667,7 +670,7 @@ API:
 | Assets | `GET` | `/api/v2/assets` | 備品一覧取得 |
 | Assets | `GET` | `/api/v2/assets/pair/{managementNumber}` | マスタ+備品詳細取得 |
 | Assets | `PUT` | `/api/v2/assets/{id}` | 備品更新 |
-| Assets | `GET` | `/api/v2/assets/search?name=...` | 備品名検索 |
+| Assets | `GET` | `/api/v2/assets/search` | 複数条件による備品検索 |
 | Assets | `GET` | `/api/v2/assets/lookup/{janCode}` | JAN検索 |
 | Print | `GET` | `/api/v2/assets/print/templates` | 印刷テンプレート取得 |
 | Lending | `POST` | `/api/v2/lends` | 貸出登録 |
