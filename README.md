@@ -49,6 +49,8 @@ bash scripts/build-deb.sh
 
 ビルド専用コンテナ内でGoバイナリと`.deb`を生成します。成果物は `dist/` に出力されます。詳細な検証手順は [docs/operations.md](docs/operations.md) を参照してください。
 
+`vX.Y.Z-alpha.N` タグをcheckoutした状態で実行すると、タグから `X.Y.Z~alpha.N` を自動設定してパッケージ名へ反映します。タグ外でのビルドは changelog の既定版番号を使用します。任意のalpha版番号を明示する場合は、`DEB_VERSION=1.2.3~alpha.4 bash scripts/build-deb.sh` のように指定できます。
+
 alpha版のGitHub Release手順は [docs/release.md](docs/release.md) を参照してください。
 
 ## ドキュメント

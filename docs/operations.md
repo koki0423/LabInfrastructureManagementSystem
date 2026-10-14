@@ -33,6 +33,8 @@ bash scripts/build-deb.sh
 3. backendのテストを実行する。
 4. `lims-system_1.0.0_amd64.deb` を `dist/` に出力する。
 
+`vX.Y.Z-alpha.N` タグをcheckoutした状態では、`build-deb.sh` がタグから `X.Y.Z~alpha.N` を自動設定し、`lims-system_X.Y.Z~alpha.N_amd64.deb` を出力します。`DEB_VERSION` を指定した場合はその値を優先します。タグ外で `DEB_VERSION` を指定しない場合は、`packaging/debian/changelog` の既定版番号を使用します。
+
 ## Ubuntu 24.04での検証
 
 Ubuntu 24.04のクリーンな仮想マシンで、生成物をコピーして実施します。
