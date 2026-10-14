@@ -6,9 +6,10 @@ readonly LIMS_CONFIG="/etc/lims/lims.env"
 readonly LIMS_STATE_DIR="/var/lib/lims"
 readonly LIMS_INITIALIZED_FILE="${LIMS_STATE_DIR}/.initialized"
 readonly LIMS_COMPOSE="/usr/share/lims/docker-compose.yml"
-readonly LIMS_ENV_TEMPLATE="/usr/share/lims/examples/lims.env.example"
 readonly LIMS_SERVICE="lims.service"
 readonly LIMS_DEFAULT_ADMIN_ID="sys-super-admin"
+readonly LIMS_DATABASE_NAME="lims_v2"
+readonly LIMS_DEFAULT_DB_USER="lims_app"
 
 die() {
     echo "[ERROR] $*" >&2
@@ -29,14 +30,129 @@ ensure_docker() {
     docker compose version >/dev/null 2>&1 || die "Docker Compose plugin が見つかりません。"
 }
 
+validate_db_user() {
+    local db_user="$1"
+
+    [[ "${db_user}" =~ ^[A-Za-z][A-Za-z0-9_]{0,31}$ ]] || die "アプリ用DBユーザー名は英字で始まる32文字以下の英数字またはアンダースコアで指定してください。"
+    [ "${db_user}" != "root" ] || die "アプリ用DBユーザー名に root は指定できません。"
+}
+
+validate_db_password() {
+    local password="$1"
+
+    [[ "${password}" =~ ^[A-Za-z0-9._-]{16,128}$ ]] || die "DBパスワードは16〜128文字の英数字、ピリオド、アンダースコア、ハイフンで指定してください。"
+}
+
+generate_db_password() {
+    local password
+
+    command -v od >/dev/null 2>&1 || die "DBパスワードの自動生成に必要な od コマンドが見つかりません。"
+    command -v tr >/dev/null 2>&1 || die "DBパスワードの自動生成に必要な tr コマンドが見つかりません。"
+    password="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+    [ "${#password}" -eq 64 ] || die "DBパスワードの自動生成に失敗しました。"
+    printf '%s' "${password}"
+}
+
+prompt_db_password() {
+    local label="$1"
+    local target_variable="$2"
+    local first_password
+    local second_password
+
+    while true; do
+        read -r -s -p "${label}: " first_password || die "DBパスワードの入力を中止しました。"
+        echo
+        read -r -s -p "${label}（確認）: " second_password || die "DBパスワードの入力を中止しました。"
+        echo
+
+        [ "${first_password}" = "${second_password}" ] || {
+            echo "[WARN] 入力が一致しません。もう一度入力してください。" >&2
+            continue
+        }
+        validate_db_password "${first_password}"
+        printf -v "${target_variable}" '%s' "${first_password}"
+        return
+    done
+}
+
+write_config() {
+    local root_password="$1"
+    local db_user="$2"
+    local db_password="$3"
+    local temporary_config
+
+    install -d -o root -g lims -m 0750 /etc/lims
+    temporary_config="$(mktemp "${LIMS_CONFIG}.tmp.XXXXXX")" || die "設定ファイルの一時ファイルを作成できません。"
+
+    {
+        printf '%s\n' '# limsctl init により生成されました。DB認証情報を含むため、権限は 0640 を維持してください。'
+        printf 'MYSQL_ROOT_PASSWORD=%s\n' "${root_password}"
+        printf 'MYSQL_DATABASE=%s\n' "${LIMS_DATABASE_NAME}"
+        printf 'DB_USER=%s\n' "${db_user}"
+        printf 'DB_PASSWORD=%s\n' "${db_password}"
+        printf 'DB_NAME=%s\n' "${LIMS_DATABASE_NAME}"
+        printf '%s\n' 'LIMS_DATA_DIR=/var/lib/lims/mysql'
+        printf '%s\n' 'LIMS_HTTP_PORT=80'
+        printf '%s\n' 'LIMS_IMAGE_TAG=1.0.0'
+    } >"${temporary_config}"
+
+    chown root:lims "${temporary_config}"
+    chmod 0640 "${temporary_config}"
+    mv -f "${temporary_config}" "${LIMS_CONFIG}"
+}
+
 create_config_if_missing() {
+    local credentials_mode="${1:-}"
+    local choice
+    local root_password
+    local db_password
+    local db_user
+
     if [ -f "${LIMS_CONFIG}" ]; then
+        if [ -n "${credentials_mode}" ]; then
+            info "既存の設定ファイルを保護するため、--db-credentials の指定は適用しません。"
+        fi
         return
     fi
 
+    if [ -z "${credentials_mode}" ]; then
+        [ -t 0 ] || die "初回初期化には対話端末が必要です。--db-credentials auto または manual を指定してください。"
+        echo "DB認証情報の設定方法を選択してください。"
+        echo "  1) 自動生成（推奨）"
+        echo "  2) 手入力"
+        read -r -p "選択 [1/2] (1): " choice || die "設定方法の選択を中止しました。"
+        case "${choice:-1}" in
+            1) credentials_mode="auto" ;;
+            2) credentials_mode="manual" ;;
+            *) die "設定方法は 1 または 2 を指定してください。" ;;
+        esac
+    fi
+
+    case "${credentials_mode}" in
+        auto)
+            root_password="$(generate_db_password)"
+            db_user="${LIMS_DEFAULT_DB_USER}"
+            db_password="$(generate_db_password)"
+            ;;
+        manual)
+            [ -t 0 ] || die "手入力には対話可能な端末が必要です。"
+            read -r -p "アプリ用DBユーザー名 [${LIMS_DEFAULT_DB_USER}]: " db_user || die "DBユーザー名の入力を中止しました。"
+            db_user="${db_user:-${LIMS_DEFAULT_DB_USER}}"
+            validate_db_user "${db_user}"
+            prompt_db_password "MySQL root パスワード" root_password
+            prompt_db_password "アプリ用DBパスワード" db_password
+            ;;
+        *)
+            die "DB認証情報の設定方法は auto または manual を指定してください。"
+            ;;
+    esac
+
+    validate_db_user "${db_user}"
+    validate_db_password "${root_password}"
+    validate_db_password "${db_password}"
+
     info "設定ファイルを生成します: ${LIMS_CONFIG}"
-    install -d -o root -g lims -m 0750 /etc/lims
-    install -o root -g lims -m 0640 "${LIMS_ENV_TEMPLATE}" "${LIMS_CONFIG}"
+    write_config "${root_password}" "${db_user}" "${db_password}"
 }
 
 load_config() {
@@ -48,9 +164,13 @@ load_config() {
 
     : "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in ${LIMS_CONFIG}}"
     : "${MYSQL_DATABASE:?MYSQL_DATABASE must be set in ${LIMS_CONFIG}}"
+    : "${DB_USER:?DB_USER must be set in ${LIMS_CONFIG}}"
     : "${DB_PASSWORD:?DB_PASSWORD must be set in ${LIMS_CONFIG}}"
     : "${DB_NAME:?DB_NAME must be set in ${LIMS_CONFIG}}"
     : "${LIMS_DATA_DIR:?LIMS_DATA_DIR must be set in ${LIMS_CONFIG}}"
+
+    [ "${MYSQL_DATABASE}" = "${LIMS_DATABASE_NAME}" ] || die "MYSQL_DATABASE は ${LIMS_DATABASE_NAME} を指定してください。"
+    [ "${DB_NAME}" = "${LIMS_DATABASE_NAME}" ] || die "DB_NAME は ${LIMS_DATABASE_NAME} を指定してください。"
 }
 
 compose() {
@@ -60,6 +180,11 @@ compose() {
 mysql_root_query() {
     compose exec -T db \
         mysql --protocol=TCP -h 127.0.0.1 -uroot "-p${MYSQL_ROOT_PASSWORD}" -Nse "$1"
+}
+
+mysql_root_execute() {
+    compose exec -T db \
+        mysql --protocol=TCP -h 127.0.0.1 -uroot "-p${MYSQL_ROOT_PASSWORD}"
 }
 
 bootstrap_admin() {
@@ -90,6 +215,27 @@ schema_is_present() {
     fi
 
     [ "${table_count}" = "1" ]
+}
+
+ensure_application_db_user() {
+    if [ "${DB_USER}" = "root" ]; then
+        info "既存設定のDBユーザー root を維持します。"
+        return
+    fi
+
+    validate_db_user "${DB_USER}"
+    validate_db_password "${DB_PASSWORD}"
+
+    info "アプリ用DBユーザーを設定しています。"
+    if ! printf "CREATE USER IF NOT EXISTS '%s'@'%%' IDENTIFIED BY '%s';\n" "${DB_USER}" "${DB_PASSWORD}" | mysql_root_execute >/dev/null; then
+        die "アプリ用DBユーザーの作成に失敗しました。sudo limsctl logs db で確認してください。"
+    fi
+    if ! printf "ALTER USER '%s'@'%%' IDENTIFIED BY '%s';\n" "${DB_USER}" "${DB_PASSWORD}" | mysql_root_execute >/dev/null; then
+        die "アプリ用DBユーザーのパスワード設定に失敗しました。sudo limsctl logs db で確認してください。"
+    fi
+    if ! printf "GRANT SELECT, INSERT, UPDATE, DELETE ON \`%s\`.* TO '%s'@'%%';\n" "${DB_NAME}" "${DB_USER}" | mysql_root_execute >/dev/null; then
+        die "アプリ用DBユーザーへの権限付与に失敗しました。sudo limsctl logs db で確認してください。"
+    fi
 }
 
 ensure_initialized() {
@@ -138,9 +284,11 @@ stop_lims() {
 }
 
 initialize_lims() {
+    local credentials_mode="${1:-}"
+
     require_root init
     ensure_docker
-    create_config_if_missing
+    create_config_if_missing "${credentials_mode}"
     load_config
 
     if [ -f "${LIMS_INITIALIZED_FILE}" ]; then
@@ -161,6 +309,8 @@ initialize_lims() {
 
     # MySQLの公式イメージは空のデータディレクトリに限り初期SQLを実行する。
     # 既存のデータディレクトリではSQLを再実行しないため、再初期化でデータを破壊しない。
+    ensure_application_db_user
+
     info "初期管理者アカウントを作成しています。"
     if ! bootstrap_admin "${LIMS_DEFAULT_ADMIN_ID}"; then
         die "初期管理者アカウントの作成に失敗しました。"
@@ -221,7 +371,9 @@ usage() {
     cat <<'EOF'
 Usage: limsctl {init|inituser|start|stop|restart|status|logs}
 
-  init                 初期設定、初期管理者の発行、サービス自動起動を有効化します
+  init [--db-credentials auto|manual]
+                       初期設定、初期管理者の発行、サービス自動起動を有効化します
+                       初回はDB認証情報を自動生成または手入力で設定します
   inituser <ユーザー名> 指定ユーザーをsuper_adminとして作成または復旧し、一時パスワードを発行します
   start                LIMSを起動します
   stop                 LIMSを停止します（永続データは保持します）
@@ -233,8 +385,18 @@ EOF
 
 case "${1:-}" in
     init)
-        [ "$#" -eq 1 ] || die "init は引数を取りません。"
-        initialize_lims
+        case "$#" in
+            1)
+                initialize_lims
+                ;;
+            3)
+                [ "$2" = "--db-credentials" ] || die "init のオプションは --db-credentials auto|manual です。"
+                initialize_lims "$3"
+                ;;
+            *)
+                die "Usage: limsctl init [--db-credentials auto|manual]"
+                ;;
+        esac
         ;;
     inituser)
         [ "$#" -eq 2 ] || die "inituser はユーザー名を1つ指定してください。"
