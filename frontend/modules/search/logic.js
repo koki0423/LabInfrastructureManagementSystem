@@ -427,7 +427,7 @@ window.SearchController = {
     // 戻るボタンの挙動
     backToSearch() {
         searchState.result = null;
-        Router.to('search-top');
+        Router.back('search-top');
     }
 };
 
