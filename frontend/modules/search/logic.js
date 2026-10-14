@@ -19,6 +19,43 @@ const STATUS_MAP = {
 
 const SEARCH_VIEW_STATE_KEY = 'search-view';
 
+const SEARCH_INPUT_SELECTORS = {
+    q: '#search-keyword',
+    managementNumber: '#search-management-number',
+    genreId: '#search-genre',
+    statusId: '#search-status',
+    manufacturer: '#search-manufacturer',
+    model: '#search-model',
+    serial: '#search-serial',
+    owner: '#search-owner',
+    location: '#search-location',
+    defaultLocation: '#search-default-location',
+    purchasedFrom: '#search-purchased-from',
+    purchasedTo: '#search-purchased-to'
+};
+
+const SEARCH_QUERY_LABELS = {
+    q: 'フリーワード',
+    managementNumber: '管理番号',
+    genreId: 'ジャンル',
+    statusId: '状態',
+    manufacturer: 'メーカー',
+    model: '型番',
+    serial: 'シリアル番号',
+    owner: '管理者 / 利用者',
+    location: '現在地',
+    defaultLocation: '定位置',
+    purchasedFrom: '購入日 From',
+    purchasedTo: '購入日 To'
+};
+
+function createEmptySearchQuery() {
+    return Object.keys(SEARCH_INPUT_SELECTORS).reduce((query, key) => {
+        query[key] = '';
+        return query;
+    }, {});
+}
+
 // === 状態管理オブジェクト ===
 const searchState = {
     result: null,       // 検索結果1件をここに保持
@@ -27,10 +64,7 @@ const searchState = {
     currentFilter: null,// フィルタ状態 (null=全表示)
     sortKey: null,      // 'mgmt', 'name', 'status', 'location' など
     sortOrder: 'asc',   // 'asc'(昇順) か 'desc'(降順)
-    query: {
-        itemId: '',
-        name: ''
-    },
+    query: createEmptySearchQuery(),
     searching: false
 };
 
@@ -41,10 +75,7 @@ function resetSearchState({ clearPersisted = false } = {}) {
     searchState.currentFilter = null;
     searchState.sortKey = null;
     searchState.sortOrder = 'asc';
-    searchState.query = {
-        itemId: '',
-        name: ''
-    };
+    searchState.query = createEmptySearchQuery();
     searchState.searching = false;
 
     if (clearPersisted) {
@@ -53,7 +84,7 @@ function resetSearchState({ clearPersisted = false } = {}) {
 }
 
 function hasSearchQuery() {
-    return Boolean(searchState.query.itemId || searchState.query.name);
+    return Object.values(searchState.query).some(Boolean);
 }
 
 function persistSearchState() {
@@ -68,10 +99,11 @@ function persistSearchState() {
 
 function restoreSearchState() {
     const persisted = loadViewState(SEARCH_VIEW_STATE_KEY, {});
-    searchState.query = {
-        itemId: persisted.query?.itemId || '',
-        name: persisted.query?.name || ''
-    };
+    const restoredQuery = persisted.query || {};
+    searchState.query = Object.keys(SEARCH_INPUT_SELECTORS).reduce((query, key) => {
+        query[key] = typeof restoredQuery[key] === 'string' ? restoredQuery[key] : '';
+        return query;
+    }, createEmptySearchQuery());
     searchState.currentFilter = persisted.currentFilter ?? null;
     searchState.sortKey = persisted.sortKey || null;
     searchState.sortOrder = persisted.sortOrder === 'desc' ? 'desc' : 'asc';
@@ -79,38 +111,31 @@ function restoreSearchState() {
 }
 
 function syncSearchQueryFromInputs() {
-    const idInput = document.querySelector('input[name="itemId"]');
-    const nameInput = document.getElementById('search-name');
-
-    searchState.query.itemId = idInput ? idInput.value.trim() : '';
-    searchState.query.name = nameInput ? nameInput.value.trim() : '';
+    Object.entries(SEARCH_INPUT_SELECTORS).forEach(([key, selector]) => {
+        const input = document.querySelector(selector);
+        searchState.query[key] = input ? input.value.trim() : '';
+    });
 }
 
 function applySearchQueryToInputs() {
-    const idInput = document.querySelector('input[name="itemId"]');
-    const nameInput = document.getElementById('search-name');
-
-    if (idInput) {
-        idInput.value = searchState.query.itemId || '';
-    }
-    if (nameInput) {
-        nameInput.value = searchState.query.name || '';
-    }
+    Object.entries(SEARCH_INPUT_SELECTORS).forEach(([key, selector]) => {
+        const input = document.querySelector(selector);
+        if (input) {
+            input.value = searchState.query[key] || '';
+        }
+    });
 }
 
 function bindSearchInputPersistence() {
-    const idInput = document.querySelector('input[name="itemId"]');
-    const nameInput = document.getElementById('search-name');
-    const inputs = [idInput, nameInput];
-
-    for (let i = 0; i < inputs.length; i += 1) {
-        const input = inputs[i];
+    for (const selector of Object.values(SEARCH_INPUT_SELECTORS)) {
+        const input = document.querySelector(selector);
         if (!input || input.dataset.searchStateBound === '1') {
             continue;
         }
 
         input.dataset.searchStateBound = '1';
-        input.addEventListener('input', () => {
+        const eventName = input.tagName === 'SELECT' || input.type === 'date' ? 'change' : 'input';
+        input.addEventListener(eventName, () => {
             syncSearchQueryFromInputs();
             persistSearchState();
         });
@@ -119,9 +144,9 @@ function bindSearchInputPersistence() {
 
 function setSearchBusy(isBusy) {
     setControlsDisabled([
-        'input[name="itemId"]',
-        '#search-name',
-        '#search-back-btn'
+        '#search-query-form input, #search-query-form select',
+        '#search-back-btn',
+        '#search-clear-btn'
     ], isBusy);
 }
 
@@ -157,6 +182,16 @@ function getSearchSortLabel() {
     return `${baseLabel} ${searchState.sortOrder === 'desc' ? '降順' : '昇順'}`;
 }
 
+function getSearchConditionValue(key, value) {
+    if (key === 'genreId') {
+        return AppState.getGenreById(value, { all: true })?.name || value;
+    }
+    if (key === 'statusId') {
+        return getStatusName(value);
+    }
+    return value;
+}
+
 function renderSearchListConditions() {
     const summary = document.getElementById('search-list-summary');
     const chips = document.getElementById('search-list-condition-chips');
@@ -175,14 +210,20 @@ function renderSearchListConditions() {
     }
 
     const chipHtml = [];
-    if (searchState.query.itemId) {
-        chipHtml.push(createConditionChip('備品番号', searchState.query.itemId, "SearchController.removeQueryCondition('itemId')", searchState.searching));
-    }
-    if (searchState.query.name) {
-        chipHtml.push(createConditionChip('備品名', searchState.query.name, "SearchController.removeQueryCondition('name')", searchState.searching));
-    }
+    Object.entries(searchState.query).forEach(([key, value]) => {
+        if (!value) {
+            return;
+        }
+        const label = SEARCH_QUERY_LABELS[key] || key;
+        chipHtml.push(createConditionChip(
+            label,
+            getSearchConditionValue(key, value),
+            `SearchController.removeQueryCondition('${key}')`,
+            searchState.searching
+        ));
+    });
     if (searchState.currentFilter) {
-        chipHtml.push(createConditionChip('状態', getStatusName(searchState.currentFilter), 'SearchController.clearStatusFilter()', searchState.searching));
+        chipHtml.push(createConditionChip('一覧内の状態', getStatusName(searchState.currentFilter), 'SearchController.clearStatusFilter()', searchState.searching));
     }
     if (searchState.sortKey) {
         chipHtml.push(createConditionChip('並び順', getSearchSortLabel(), 'SearchController.clearSortCondition()', searchState.searching));
@@ -221,13 +262,7 @@ async function executeSearchFromState({ resetListState = false, emptyBehavior = 
         return;
     }
 
-    let results = [];
-    if (searchState.query.itemId) {
-        const res = await API.assets.getPair(searchState.query.itemId);
-        results = Array.isArray(res) ? res : [res];
-    } else if (searchState.query.name) {
-        results = await API.assets.searchByName(searchState.query.name);
-    }
+    const results = await API.assets.search(buildSearchParams());
 
     if (!results || results.length === 0) {
         persistSearchState();
@@ -252,6 +287,33 @@ async function executeSearchFromState({ resetListState = false, emptyBehavior = 
     searchState.candidates = results;
     persistSearchState();
     Router.to('search-list');
+}
+
+function buildSearchParams() {
+    const query = searchState.query;
+    const params = {};
+    const parameterMap = {
+        q: 'q',
+        managementNumber: 'management_number',
+        genreId: 'genre_id',
+        statusId: 'status_id',
+        manufacturer: 'manufacturer',
+        model: 'model',
+        serial: 'serial',
+        owner: 'owner',
+        location: 'location',
+        defaultLocation: 'default_location',
+        purchasedFrom: 'purchased_from',
+        purchasedTo: 'purchased_to'
+    };
+
+    Object.entries(parameterMap).forEach(([stateKey, parameterKey]) => {
+        if (query[stateKey]) {
+            params[parameterKey] = query[stateKey];
+        }
+    });
+
+    return params;
 }
 
 // === ヘルパー関数 ===
@@ -309,7 +371,15 @@ window.SearchController = {
             await runWithButtonLoading('#search-submit-btn', { busyText: '検索中...' }, async () => {
                 syncSearchQueryFromInputs();
                 if (!hasSearchQuery()) {
-                    showPageFeedback('search-feedback', '検索条件を入力してください。', 'error');
+                    showPageFeedback('search-feedback', '検索条件を1つ以上入力してください。', 'error');
+                    return;
+                }
+                if (
+                    searchState.query.purchasedFrom
+                    && searchState.query.purchasedTo
+                    && searchState.query.purchasedFrom > searchState.query.purchasedTo
+                ) {
+                    showPageFeedback('search-feedback', '購入日の開始日は終了日以前にしてください。', 'error');
                     return;
                 }
                 await executeSearchFromState({ resetListState: true, emptyBehavior: 'stay' });
@@ -321,6 +391,17 @@ window.SearchController = {
             searchState.searching = false;
             setSearchBusy(false);
         }
+    },
+    clearSearchConditions() {
+        if (searchState.searching) {
+            return;
+        }
+
+        searchState.query = createEmptySearchQuery();
+        applySearchQueryToInputs();
+        persistSearchState();
+        hidePageFeedback('search-feedback');
+        document.getElementById('search-keyword')?.focus();
     },
     // フィルタ切り替え
     toggleFilter(status) {
@@ -398,7 +479,7 @@ window.SearchController = {
             return;
         }
 
-        searchState.query = { itemId: '', name: '' };
+        searchState.query = createEmptySearchQuery();
         searchState.currentFilter = null;
         searchState.sortKey = null;
         searchState.sortOrder = 'asc';
@@ -432,11 +513,19 @@ window.SearchController = {
 };
 
 // === 画面初期化 (result.html 表示時) ===
-export function initSearch(view) {
+export async function initSearch(view) {
     if (view === 'input') {
         resetSearchState({ clearPersisted: true });
         hidePageFeedback('search-feedback');
+        try {
+            await AppState.loadGenres({ all: true });
+            renderSearchGenreOptions();
+        } catch (error) {
+            console.error(error);
+            showApiPageFeedback('search-feedback', error, 'ジャンルの取得に失敗しました。');
+        }
         applySearchQueryToInputs();
+        bindSearchInputPersistence();
         return;
     }
 
@@ -477,6 +566,28 @@ export function initSearch(view) {
 
     setVal('disp-registrant', data.owner);
     setVal('disp-remarks', data.notes);
+}
+
+function renderSearchGenreOptions() {
+    const select = document.getElementById('search-genre');
+    if (!select) {
+        return;
+    }
+
+    const selectedValue = searchState.query.genreId || '';
+    select.innerHTML = '<option value="">すべてのジャンル</option>';
+    AppState.allGenres.forEach((genre) => {
+        const id = genre.id ?? genre.genre_id;
+        if (id === undefined || id === null) {
+            return;
+        }
+
+        const option = document.createElement('option');
+        option.value = String(id);
+        option.textContent = `${genre.name || genre.genre_name || '名称未設定'}${genre.is_disabled ? '（無効）' : ''}`;
+        option.selected = String(id) === selectedValue;
+        select.appendChild(option);
+    });
 }
 
 // === 画面初期化 (list.html 表示時) ===

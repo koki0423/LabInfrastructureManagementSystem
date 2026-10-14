@@ -1,22 +1,82 @@
 <div class="screen-content">
-    <h2>OR 検索: 備品番号 または 備品名のどちらかを入力してください</h2>
+    <h2>備品検索</h2>
+    <p class="content-note search-query-lead">条件を組み合わせて、備品を絞り込めます。</p>
     <div class="screen-tools-stack">
         <div id="search-feedback" class="batch-status-banner info page-feedback" hidden></div>
     </div>
-    <div class="form-group">
-        <label>備品番号</label>
-        <div class="input-with-btn">
-            <input type="text" name="itemId" placeholder="例:OFS-20251101-0001" required>
+
+    <form id="search-query-form" class="search-query-form" onsubmit="event.preventDefault(); SearchController.performSearch();">
+        <div class="search-query-grid">
+            <div class="form-group">
+                <label for="search-keyword">フリーワード</label>
+                <input type="text" id="search-keyword" placeholder="管理番号・備品名・メーカー・型番・シリアル番号">
+            </div>
+            <div class="form-group">
+                <label for="search-genre">ジャンル</label>
+                <select id="search-genre">
+                    <option value="">すべてのジャンル</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="search-status">状態</label>
+                <select id="search-status">
+                    <option value="">すべての状態</option>
+                    <option value="1">正常</option>
+                    <option value="2">故障</option>
+                    <option value="3">修理中</option>
+                    <option value="4">貸出中</option>
+                    <option value="5">廃棄済み</option>
+                    <option value="6">紛失</option>
+                </select>
+            </div>
         </div>
-    </div>
 
-    <div class="form-group mt-20">
-        <label>備品名（部分一致）</label>
-        <input type="text" id="search-name" class="input-lg" placeholder="例: MacBook / オシロスコープ">
-    </div>
+        <details class="search-query-details">
+            <summary>詳細条件を指定する</summary>
+            <div class="search-query-grid search-query-detail-grid">
+                <div class="form-group">
+                    <label for="search-management-number">管理番号（完全一致）</label>
+                    <input type="text" id="search-management-number" placeholder="例: OFS-20251101-0001">
+                </div>
+                <div class="form-group">
+                    <label for="search-manufacturer">メーカー</label>
+                    <input type="text" id="search-manufacturer" placeholder="例: Lenovo">
+                </div>
+                <div class="form-group">
+                    <label for="search-model">型番</label>
+                    <input type="text" id="search-model" placeholder="例: ThinkPad X1">
+                </div>
+                <div class="form-group">
+                    <label for="search-serial">シリアル番号</label>
+                    <input type="text" id="search-serial" placeholder="例: ABC123">
+                </div>
+                <div class="form-group">
+                    <label for="search-owner">管理者 / 利用者</label>
+                    <input type="text" id="search-owner" placeholder="例: 24A1234">
+                </div>
+                <div class="form-group">
+                    <label for="search-location">現在地</label>
+                    <input type="text" id="search-location" placeholder="例: 研究室A">
+                </div>
+                <div class="form-group">
+                    <label for="search-default-location">定位置</label>
+                    <input type="text" id="search-default-location" placeholder="例: 棚A-01">
+                </div>
+                <div class="form-group">
+                    <label for="search-purchased-from">購入日 From</label>
+                    <input type="date" id="search-purchased-from">
+                </div>
+                <div class="form-group">
+                    <label for="search-purchased-to">購入日 To</label>
+                    <input type="date" id="search-purchased-to">
+                </div>
+            </div>
+        </details>
 
-    <div class="nav-buttons nav-buttons-spacious">
-        <button id="search-back-btn" class="back-btn" onclick="Router.to('main-menu')">戻る</button>
-        <button id="search-submit-btn" class="primary-btn" onclick="SearchController.performSearch()">検索</button>
-    </div>
+        <div class="search-query-actions">
+            <button type="button" id="search-back-btn" class="back-btn" onclick="Router.to('main-menu')">戻る</button>
+            <button type="button" id="search-clear-btn" class="back-btn" onclick="SearchController.clearSearchConditions()">条件をクリア</button>
+            <button type="submit" id="search-submit-btn" class="primary-btn">検索</button>
+        </div>
+    </form>
 </div>
