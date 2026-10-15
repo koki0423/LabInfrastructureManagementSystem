@@ -7,7 +7,26 @@ readonly REPOSITORY_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly BUILDER_IMAGE="lims-system-deb-builder:1.0.0"
 readonly BUILDER_DOCKERFILE="${REPOSITORY_ROOT}/packaging/debian/Dockerfile.build"
 readonly OUTPUT_DIR="${REPOSITORY_ROOT}/dist"
-readonly DEB_VERSION="${DEB_VERSION:-}"
+
+derive_deb_version_from_current_tag() {
+    local tag
+
+    command -v git >/dev/null 2>&1 || return
+    tag="$(git -C "${REPOSITORY_ROOT}" describe --exact-match --tags HEAD 2>/dev/null || true)"
+
+    if [[ "${tag}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-alpha\.([0-9]+)$ ]]; then
+        printf '%s~alpha.%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    fi
+}
+
+DEB_VERSION="${DEB_VERSION:-}"
+if [[ -z "${DEB_VERSION}" ]]; then
+    DEB_VERSION="$(derive_deb_version_from_current_tag)"
+    if [[ -n "${DEB_VERSION}" ]]; then
+        echo "[INFO] 現在のGitタグからDebian版番号を設定します: ${DEB_VERSION}"
+    fi
+fi
+readonly DEB_VERSION
 
 if [[ -n "${DEB_VERSION}" && ! "${DEB_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+~alpha\.[0-9]+$ ]]; then
     echo "[ERROR] DEB_VERSION must use X.Y.Z~alpha.N format: ${DEB_VERSION}" >&2
@@ -45,7 +64,7 @@ docker run --rm \
         # debhelper が executable な *.install をスクリプトとして実行しないよう正規化する。
         find . -type f -exec chmod a-x {} +
         chmod +x debian/rules debian/lims-system.postinst debian/lims-system.prerm debian/lims-system.postrm scripts/limsctl
-        if [[ -n "${DEB_VERSION:-}" ]]; then
+        if [[ -n "${DEB_VERSION}" ]]; then
             sed -E -i "1s/^lims-system \\([^)]+\\)/lims-system (${DEB_VERSION})/" debian/changelog
         fi
         dpkg-buildpackage -us -uc -b

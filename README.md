@@ -12,7 +12,9 @@ sudo apt install lims-system
 sudo limsctl init
 ```
 
-`init` は初回のみ、設定の作成、MySQLの初期化、初期管理者の発行、backend/frontendの起動、OS起動時の自動起動を行います。初期化の最後に表示される初期管理者の一時パスワードは再表示できないため、安全な場所に記録してください。初期化済みの場合は既存のデータを変更せず終了します。
+`init` は初回のみ、設定の作成、MySQLの初期化、初期管理者の発行、backend/frontendの起動、OS起動時の自動起動を行います。最初にMySQL root用とアプリ用DBユーザーの認証情報を「自動生成」または「手入力」から選択します。自動生成を明示する場合は `sudo limsctl init --db-credentials auto`、手入力する場合は `sudo limsctl init --db-credentials manual` を実行してください。
+
+初期化の最後に表示される初期管理者の一時パスワードは再表示できないため、安全な場所に記録してください。DB認証情報は `/etc/lims/lims.env` にだけ保存され、画面やログには表示しません。初期化済みの場合は既存の設定・認証情報・データを変更せず終了します。
 
 管理コマンドは以下です。
 
@@ -46,6 +48,8 @@ bash scripts/build-deb.sh
 ```
 
 ビルド専用コンテナ内でGoバイナリと`.deb`を生成します。成果物は `dist/` に出力されます。詳細な検証手順は [docs/operations.md](docs/operations.md) を参照してください。
+
+`vX.Y.Z-alpha.N` タグをcheckoutした状態で実行すると、タグから `X.Y.Z~alpha.N` を自動設定してパッケージ名へ反映します。タグ外でのビルドは changelog の既定版番号を使用します。任意のalpha版番号を明示する場合は、`DEB_VERSION=1.2.3~alpha.4 bash scripts/build-deb.sh` のように指定できます。
 
 alpha版のGitHub Release手順は [docs/release.md](docs/release.md) を参照してください。
 

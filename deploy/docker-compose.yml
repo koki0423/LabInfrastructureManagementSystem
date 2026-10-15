@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-lims_v2}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE must be set}
       TZ: UTC
     volumes:
       - ${LIMS_DATA_DIR:?LIMS_DATA_DIR must be set}:/var/lib/mysql
@@ -28,9 +28,9 @@ services:
       APP_TLS: "false"
       DB_HOST: db
       DB_PORT: "3306"
-      DB_USER: ${DB_USER:-root}
+      DB_USER: ${DB_USER:?DB_USER must be set}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      DB_NAME: ${DB_NAME:-lims_v2}
+      DB_NAME: ${DB_NAME:?DB_NAME must be set}
       FRONTEND_MODE: external
       FRONTEND_INDEX_FILE: index.html
     depends_on:
