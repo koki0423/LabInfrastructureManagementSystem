@@ -3,7 +3,7 @@ import { escapeHtml } from './dom_utils.js';
 import { clearFieldFeedback, setFieldFeedback } from './ui_feedback.js';
 
 const STATUS_LABELS = {
-    1: '正常',
+    1: '利用可',
     2: '故障',
     3: '修理中',
     4: '貸出中',
