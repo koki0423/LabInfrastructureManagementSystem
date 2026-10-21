@@ -8,6 +8,52 @@ import { hidePageFeedback, showApiPageFeedback, showPageFeedback } from '../../j
 import { loadViewState, saveViewState } from '../../js/view_state.js';
 
 // === 状態管理 ===
+const ITEM_SEARCH_INPUT_SELECTORS = {
+    q: '#item-search-keyword',
+    managementNumber: '#item-search-management-number',
+    genreId: '#item-search-genre',
+    manufacturer: '#item-search-manufacturer',
+    model: '#item-search-model',
+    serial: '#item-search-serial',
+    owner: '#item-search-owner',
+    location: '#item-search-location',
+    defaultLocation: '#item-search-default-location',
+    purchasedFrom: '#item-search-purchased-from',
+    purchasedTo: '#item-search-purchased-to'
+};
+
+const ITEM_SEARCH_PARAM_MAP = {
+    q: 'q',
+    managementNumber: 'management_number',
+    genreId: 'genre_id',
+    manufacturer: 'manufacturer',
+    model: 'model',
+    serial: 'serial',
+    owner: 'owner',
+    location: 'location',
+    defaultLocation: 'default_location',
+    purchasedFrom: 'purchased_from',
+    purchasedTo: 'purchased_to'
+};
+
+function createEmptyItemSearchQuery() {
+    return Object.keys(ITEM_SEARCH_INPUT_SELECTORS).reduce((query, key) => {
+        query[key] = '';
+        return query;
+    }, {});
+}
+
+function normalizeItemSearchQuery(query = {}) {
+    return Object.keys(ITEM_SEARCH_INPUT_SELECTORS).reduce((normalized, key) => {
+        normalized[key] = typeof query[key] === 'string' ? query[key] : '';
+        return normalized;
+    }, createEmptyItemSearchQuery());
+}
+
+function hasItemSearchQuery() {
+    return Object.values(itemListState.search.query).some(Boolean);
+}
+
 const itemListState = {
     items: [],
     currentFilter: '',
@@ -17,6 +63,11 @@ const itemListState = {
     totalItems: 0,
     filterCache: {
         status: '',
+        items: null
+    },
+    search: {
+        active: false,
+        query: createEmptyItemSearchQuery(),
         items: null
     },
     label: {
@@ -50,6 +101,9 @@ function restoreItemListState() {
     const persisted = loadViewState(ITEM_LIST_VIEW_STATE_KEY, {});
     itemListState.currentFilter = persisted.currentFilter ?? '';
     itemListState.currentPage = Math.max(1, Number(persisted.currentPage) || 1);
+    itemListState.search.query = normalizeItemSearchQuery(persisted.searchQuery);
+    itemListState.search.active = Boolean(persisted.searchActive && hasItemSearchQuery());
+    itemListState.search.items = null;
 
     const itemsPerPage = Number(persisted.itemsPerPage);
     if ([10, 20, 50, 100].includes(itemsPerPage)) {
@@ -61,7 +115,9 @@ function persistItemListState() {
     saveViewState(ITEM_LIST_VIEW_STATE_KEY, {
         currentFilter: itemListState.currentFilter,
         currentPage: itemListState.currentPage,
-        itemsPerPage: itemListState.itemsPerPage
+        itemsPerPage: itemListState.itemsPerPage,
+        searchActive: itemListState.search.active,
+        searchQuery: itemListState.search.query
     });
 }
 
@@ -100,6 +156,8 @@ function updateItemListSummary(state = itemListState) {
 function setItemListLoading(isLoading) {
     itemListState.loading = isLoading;
     setControlsDisabled([
+        '#item-list-search-form input, #item-list-search-form select',
+        '#item-list-search-clear-btn',
         '#item-list-filter-controls .filter-btn',
         '#item-list-per-page',
         '#pagination-controls .page-btn',
@@ -122,6 +180,132 @@ function hasActiveItemFilter() {
 function resetItemFilterCache() {
     itemListState.filterCache.status = '';
     itemListState.filterCache.items = null;
+}
+
+function syncItemSearchQueryFromInputs() {
+    Object.entries(ITEM_SEARCH_INPUT_SELECTORS).forEach(([key, selector]) => {
+        const input = document.querySelector(selector);
+        itemListState.search.query[key] = input ? input.value.trim() : '';
+    });
+}
+
+function applyItemSearchQueryToInputs() {
+    Object.entries(ITEM_SEARCH_INPUT_SELECTORS).forEach(([key, selector]) => {
+        const input = document.querySelector(selector);
+        if (input) {
+            input.value = itemListState.search.query[key] || '';
+        }
+    });
+
+    const hasDetailedCondition = [
+        'managementNumber', 'manufacturer', 'model', 'serial', 'owner',
+        'location', 'defaultLocation', 'purchasedFrom', 'purchasedTo'
+    ].some((key) => itemListState.search.query[key]);
+    const details = document.querySelector('#item-list-search-form details');
+    if (details) {
+        details.open = hasDetailedCondition;
+    }
+}
+
+function bindItemSearchInputPersistence() {
+    Object.values(ITEM_SEARCH_INPUT_SELECTORS).forEach((selector) => {
+        const input = document.querySelector(selector);
+        if (!input || input.dataset.itemSearchStateBound === '1') {
+            return;
+        }
+
+        input.dataset.itemSearchStateBound = '1';
+        const eventName = input.tagName === 'SELECT' || input.type === 'date' ? 'change' : 'input';
+        input.addEventListener(eventName, () => {
+            syncItemSearchQueryFromInputs();
+            if (itemListState.search.active) {
+                itemListState.search.items = null;
+            }
+            persistItemListState();
+        });
+    });
+}
+
+function buildItemSearchParams() {
+    const params = {};
+    Object.entries(ITEM_SEARCH_PARAM_MAP).forEach(([stateKey, parameterKey]) => {
+        if (itemListState.search.query[stateKey]) {
+            params[parameterKey] = itemListState.search.query[stateKey];
+        }
+    });
+    return params;
+}
+
+function flattenSearchResult(result) {
+    const master = result?.master || {};
+    const asset = result?.asset || {};
+    return {
+        ...asset,
+        asset_id: asset.asset_id,
+        asset_master_id: asset.asset_master_id || master.asset_master_id,
+        management_number: asset.management_number || master.management_number || '',
+        name: asset.name || master.name || '',
+        serial: asset.serial || '',
+        status_id: asset.status_id,
+        quantity: asset.quantity,
+        owner: asset.owner || '',
+        default_location: asset.default_location || '',
+        location: asset.location || ''
+    };
+}
+
+async function fetchSearchItems() {
+    if (Array.isArray(itemListState.search.items)) {
+        return itemListState.search.items;
+    }
+
+    const results = await API.assets.search(buildItemSearchParams());
+    itemListState.search.items = Array.isArray(results)
+        ? results.map(flattenSearchResult)
+        : [];
+    return itemListState.search.items;
+}
+
+function updateItemSearchSummary() {
+    const summary = document.getElementById('item-list-search-summary');
+    if (!summary) {
+        return;
+    }
+
+    summary.hidden = !itemListState.search.active;
+    if (!itemListState.search.active) {
+        summary.textContent = '';
+        return;
+    }
+
+    const matched = Array.isArray(itemListState.search.items)
+        ? itemListState.search.items.length
+        : itemListState.totalItems;
+    const displayed = itemListState.totalItems;
+    const suffix = hasActiveItemFilter() ? `（状態絞り込み後 ${displayed}件）` : '';
+    summary.textContent = `検索結果 ${matched}件${suffix}を表示しています。`;
+}
+
+function renderItemSearchGenreOptions() {
+    const select = document.getElementById('item-search-genre');
+    if (!select) {
+        return;
+    }
+
+    const selectedValue = itemListState.search.query.genreId || '';
+    select.innerHTML = '<option value="">すべてのジャンル</option>';
+    AppState.allGenres.forEach((genre) => {
+        const id = genre.id ?? genre.genre_id;
+        if (id === undefined || id === null) {
+            return;
+        }
+
+        const option = document.createElement('option');
+        option.value = String(id);
+        option.textContent = `${genre.name || genre.genre_name || '名称未設定'}${genre.is_disabled ? '（無効）' : ''}`;
+        option.selected = String(id) === selectedValue;
+        select.appendChild(option);
+    });
 }
 
 function setReadonlyState(control, isReadonly) {
@@ -218,7 +402,14 @@ async function loadItemPage(page = 1) {
 
         let normalized;
 
-        if (hasActiveItemFilter()) {
+        if (itemListState.search.active) {
+            const searchItems = await fetchSearchItems();
+            normalized = normalizePageResponse(searchItems, {
+                page: safePage,
+                itemsPerPage: itemListState.itemsPerPage,
+                localFilter: getItemFilterFn()
+            });
+        } else if (hasActiveItemFilter()) {
             const filteredSource = await fetchAllFilteredItems();
             normalized = normalizePageResponse(filteredSource, {
                 page: safePage,
@@ -246,6 +437,7 @@ async function loadItemPage(page = 1) {
         itemListState.totalItems = 0;
         itemListState.totalPages = 1;
         itemListState.currentPage = 1;
+        updateItemSearchSummary();
         showPageFeedback('item-list-feedback', '備品一覧の取得に失敗しました。', 'error');
         updateItemListSummary();
 
@@ -394,6 +586,61 @@ function buildListLabelRow(masterPayload, managementNumber) {
 }
 
 window.ItemListController = {
+    async performSearch() {
+        if (itemListState.loading) {
+            return;
+        }
+
+        hidePageFeedback('item-list-feedback');
+        syncItemSearchQueryFromInputs();
+        if (!hasItemSearchQuery()) {
+            showPageFeedback('item-list-feedback', '検索条件を1つ以上入力してください。', 'error');
+            return;
+        }
+        if (
+            itemListState.search.query.purchasedFrom
+            && itemListState.search.query.purchasedTo
+            && itemListState.search.query.purchasedFrom > itemListState.search.query.purchasedTo
+        ) {
+            showPageFeedback('item-list-feedback', '購入日の開始日は終了日以前にしてください。', 'error');
+            return;
+        }
+
+        itemListState.search.active = true;
+        itemListState.search.items = null;
+        itemListState.currentPage = 1;
+        persistItemListState();
+
+        try {
+            await runWithButtonLoading('#item-list-search-submit-btn', { busyText: '検索中...' }, async () => {
+                await loadItemPage(1);
+            });
+        } catch (error) {
+            console.error('Search error:', error);
+            showApiPageFeedback('item-list-feedback', error, '検索中にエラーが発生しました。');
+        }
+    },
+
+    async clearSearchConditions() {
+        if (itemListState.loading) {
+            return;
+        }
+
+        itemListState.search.active = false;
+        itemListState.search.query = createEmptyItemSearchQuery();
+        itemListState.search.items = null;
+        itemListState.currentFilter = '';
+        itemListState.currentPage = 1;
+        resetItemFilterCache();
+        applyItemSearchQueryToInputs();
+        updateFilterButtonStyles();
+        updateItemSearchSummary();
+        persistItemListState();
+        hidePageFeedback('item-list-feedback');
+        await loadItemPage(1);
+        document.getElementById('item-search-keyword')?.focus();
+    },
+
     async toggleFilter(status) {
         if (itemListState.loading) {
             return;
@@ -538,6 +785,9 @@ window.ItemListController = {
                 this.closeModal();
                 showPageFeedback('item-list-feedback', '更新しました。', 'success');
                 resetItemFilterCache();
+                if (itemListState.search.active) {
+                    itemListState.search.items = null;
+                }
                 await loadItemPage(itemListState.currentPage);
             });
         } catch (error) {
@@ -707,7 +957,7 @@ function buildListPrintPayload(masterPayload, managementNumber, labelSetting) {
 }
 
 // === 初期化処理 ===
-export async function initItemList() {
+export async function initItemList(options = {}) {
     restoreItemListState();
     resetItemFilterCache();
     syncItemListPerPageSelect();
@@ -724,12 +974,27 @@ export async function initItemList() {
         devices: ['tepra']
     });
 
+    try {
+        await ensureGenresLoaded();
+        renderItemSearchGenreOptions();
+    } catch (error) {
+        console.error(error);
+        showApiPageFeedback('item-list-feedback', error, 'ジャンルの取得に失敗しました。');
+    }
+    applyItemSearchQueryToInputs();
+    bindItemSearchInputPersistence();
+    updateItemSearchSummary();
+
     const tbody = document.getElementById('item-list-body');
     if (tbody) {
         tbody.innerHTML = '';
     }
 
     await loadItemPage(itemListState.currentPage);
+
+    if (options.focusSearch) {
+        document.getElementById('item-search-keyword')?.focus();
+    }
 }
 
 // === リスト描画 ===
@@ -738,6 +1003,7 @@ function renderList() {
     const paginationDiv = document.getElementById('pagination-controls');
     if (!tbody) return;
     updateItemListSummary();
+    updateItemSearchSummary();
 
     if (itemListState.items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">該当する備品はありません</td></tr>';

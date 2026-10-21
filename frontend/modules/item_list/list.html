@@ -2,26 +2,75 @@
     <h2>備品参照・編集</h2>
     <div class="screen-tools-stack">
         <div id="item-list-feedback" class="batch-status-banner info page-feedback" hidden></div>
-        <div id="item-list-device-status"></div>
+        <!-- <div id="item-list-device-status"></div> -->
     </div>
 
-    <div class="history-summary-grid item-list-summary-grid">
-        <div class="batch-summary-card">
-            <span>総件数</span>
-            <strong id="item-list-total">-</strong>
+    <form id="item-list-search-form" class="search-query-form item-list-search-form" onsubmit="event.preventDefault(); ItemListController.performSearch();">
+        <div class="search-query-grid">
+            <div class="form-group">
+                <label for="item-search-keyword">フリーワード</label>
+                <input type="text" id="item-search-keyword" placeholder="管理番号・備品名・メーカー・型番・シリアル番号">
+            </div>
+            <div class="form-group">
+                <label for="item-search-genre">ジャンル</label>
+                <select id="item-search-genre">
+                    <option value="">すべてのジャンル</option>
+                </select>
+            </div>
         </div>
-        <div class="batch-summary-card">
-            <span>現在ページ</span>
-            <strong id="item-list-page">-</strong>
+
+        <details class="search-query-details">
+            <summary>詳細条件を指定する</summary>
+            <div class="search-query-grid search-query-detail-grid">
+                <div class="form-group">
+                    <label for="item-search-management-number">管理番号（完全一致）</label>
+                    <input type="text" id="item-search-management-number" placeholder="例: OFS-20251101-0001">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-manufacturer">メーカー</label>
+                    <input type="text" id="item-search-manufacturer" placeholder="例: Lenovo">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-model">型番</label>
+                    <input type="text" id="item-search-model" placeholder="例: ThinkPad X1">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-serial">シリアル番号</label>
+                    <input type="text" id="item-search-serial" placeholder="例: ABC123">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-owner">管理者 / 利用者</label>
+                    <input type="text" id="item-search-owner" placeholder="例: 24A1234">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-location">現在地</label>
+                    <input type="text" id="item-search-location" placeholder="例: 研究室A">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-default-location">定位置</label>
+                    <input type="text" id="item-search-default-location" placeholder="例: 棚A-01">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-purchased-from">購入日 From</label>
+                    <input type="date" id="item-search-purchased-from">
+                </div>
+                <div class="form-group">
+                    <label for="item-search-purchased-to">購入日 To</label>
+                    <input type="date" id="item-search-purchased-to">
+                </div>
+            </div>
+        </details>
+
+        <div class="search-query-actions">
+            <button type="button" id="item-list-search-clear-btn" class="back-btn" onclick="ItemListController.clearSearchConditions()">条件をクリア</button>
+            <button type="submit" id="item-list-search-submit-btn" class="primary-btn">検索</button>
         </div>
-        <div class="batch-summary-card">
-            <span>表示範囲</span>
-            <strong id="item-list-range">-</strong>
-        </div>
-    </div>
+    </form>
+
+    <div id="item-list-search-summary" class="item-list-search-summary" hidden></div>
 
     <div id="item-list-filter-controls" class="filters-container">
-        <label>絞り込み:</label>
+        <label>状態で絞り込み:</label>
         <button class="filter-btn" data-status="1" onclick="ItemListController.toggleFilter('1')">正常</button>
         <button class="filter-btn" data-status="2" onclick="ItemListController.toggleFilter('2')">故障</button>
         <button class="filter-btn" data-status="3" onclick="ItemListController.toggleFilter('3')">修理中</button>
@@ -39,6 +88,7 @@
                 <option value="50">50件</option>
                 <option value="100">100件</option>
             </select>
+            <span class="item-list-total-inline">総件数 <strong id="item-list-total">-</strong></span>
         </div>
 
         <div id="pagination-controls" class="pagination-controls history-pagination"></div>

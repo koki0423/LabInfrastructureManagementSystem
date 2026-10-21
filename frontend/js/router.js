@@ -7,7 +7,6 @@ const loadRegistrationModule = () => import('../modules/registration/logic.js');
 const loadDisposalModule = () => import('../modules/disposal/logic.js');
 const loadItemListModule = () => import('../modules/item_list/logic.js');
 const loadLendReturnModule = () => import('../modules/lend_return/logic.js');
-const loadSearchModule = () => import('../modules/search/logic.js');
 const loadCommonModule = () => import('../modules/common/logic.js');
 const loadAdminModule = () => import(`../modules/admin/logic.js?v=${MODULE_VERSION}`);
 const loadMainMenuModule = () => import('../modules/main/logic.js');
@@ -104,9 +103,9 @@ const routes = {
     // === 備品参照 ===
     'item-list': {
         path: 'modules/item_list/list.html',
-        title: '備品一覧',
+        title: '備品参照・編集',
         loader: loadItemListModule,
-        init: (module) => module.initItemList()
+        init: (module, options) => module.initItemList(options)
     },
 
     // === 貸出・返却 ===
@@ -166,22 +165,16 @@ const routes = {
 
     // === 検索 ===
     'search-top': {
-        path: 'modules/search/input.html',
-        title: '備品検索',
-        loader: loadSearchModule,
-        init: (module) => module.initSearch('input')
+        redirectTo: 'item-list',
+        redirectOptions: { focusSearch: true }
     },
     'search-result': {
-        path: 'modules/search/result.html',
-        title: '検索結果',
-        loader: loadSearchModule,
-        init: (module) => module.initSearch('result')
+        redirectTo: 'item-list',
+        redirectOptions: { focusSearch: true }
     },
     'search-list': {
-        path: 'modules/search/list.html',
-        title: '検索結果一覧',
-        loader: loadSearchModule,
-        init: (module) => module.initSearchList()
+        redirectTo: 'item-list',
+        redirectOptions: { focusSearch: true }
     },
 
     // === 共通完了画面 ===
@@ -328,6 +321,15 @@ export const Router = {
             }
         }
 
+        if (route.redirectTo) {
+            await this.to(route.redirectTo, {
+                ...options,
+                ...route.redirectOptions,
+                replaceCurrent: true
+            });
+            return;
+        }
+
         try {
             const navigationId = ++this._navigationSeq;
             const container = document.getElementById('app-container');
@@ -376,7 +378,7 @@ export const Router = {
 
             // 特定の初期化処理があれば実行
             if (route.init) {
-                await route.init(loadedModule);
+                await route.init(loadedModule, options);
 
                 if (navigationId !== this._navigationSeq) {
                     return;

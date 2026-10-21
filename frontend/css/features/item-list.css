@@ -14,6 +14,46 @@
     margin-top: 0;
 }
 
+.item-list-search-form {
+    margin-bottom: 16px;
+}
+
+.item-list-search-summary {
+    margin: -4px 0 16px;
+    color: #365241;
+    font-size: 0.9rem;
+}
+
+.item-list-total-inline {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-left: 12px;
+    color: #52615a;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.item-list-total-inline strong {
+    color: #222;
+    font-size: 1.05rem;
+}
+
+.item-list-toolbar .history-rows-per-page {
+    gap: 12px;
+}
+
+.item-list-toolbar .history-rows-per-page label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .item-list-total-inline {
+        margin-left: auto;
+    }
+}
+
 .item-list-table-shell {
     margin-top: 0;
 }
