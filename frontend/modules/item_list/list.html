@@ -71,7 +71,7 @@
 
     <div id="item-list-filter-controls" class="filters-container">
         <label>状態で絞り込み:</label>
-        <button class="filter-btn" data-status="1" onclick="ItemListController.toggleFilter('1')">正常</button>
+        <button class="filter-btn" data-status="1" onclick="ItemListController.toggleFilter('1')">利用可</button>
         <button class="filter-btn" data-status="2" onclick="ItemListController.toggleFilter('2')">故障</button>
         <button class="filter-btn" data-status="3" onclick="ItemListController.toggleFilter('3')">修理中</button>
         <button class="filter-btn" data-status="4" onclick="ItemListController.toggleFilter('4')">貸出中</button>
@@ -154,7 +154,7 @@
                 <div class="form-group">
                     <label>ステータス</label>
                     <select id="edit-status">
-                        <option value="1">正常</option>
+                        <option value="1">利用可</option>
                         <option value="2">故障</option>
                         <option value="3">修理中</option>
                         <!-- 貸出中と廃棄済みは一貫性のためにモーダルから選択できないようにする -->

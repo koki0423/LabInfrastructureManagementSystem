@@ -1241,7 +1241,7 @@ function buildPayloadsFromState() {
             serial: regState.type === 'individual' ? (d.serial || null) : null,
             quantity: regState.type === 'bulk' ? Number(d.quantity || 1) : 1,
             purchased_at: d.purchaseDate ? toLocalDateTimeIso(d.purchaseDate) : toLocalDateTimeIso(new Date()),
-            status_id: 1, // 新規登録時は「正常」
+            status_id: 1, // 新規登録時は「利用可」
             owner: d.registrant || null,
             default_location: d.location || null,
             notes: d.remarks || null,

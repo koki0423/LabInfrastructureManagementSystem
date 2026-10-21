@@ -321,7 +321,7 @@ INSERT INTO `asset_genres` (`genre_id`, `genre_name`, `genre_code`, `is_disabled
   (7, 'テスト2', 'TST2', 1);
 
 INSERT INTO `asset_statuses` (`status_id`, `status_name`, `is_disabled`) VALUES
-  (1, '正常', 0),
+  (1, '利用可', 0),
   (2, '故障', 0),
   (3, '修理中', 0),
   (4, '貸出中', 0),

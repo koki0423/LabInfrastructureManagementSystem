@@ -9,7 +9,7 @@ import { clearViewState, loadViewState, saveViewState } from '../../js/view_stat
 // === 定数定義 ===
 // ステータス定義 (ID -> 表示名)
 const STATUS_MAP = {
-    1: { name: '正常', class: 'badge-normal' },
+    1: { name: '利用可', class: 'badge-normal' },
     2: { name: '故障', class: 'badge-error' },
     3: { name: '修理中', class: 'badge-warn' },
     4: { name: '貸出中', class: 'badge-warn' },

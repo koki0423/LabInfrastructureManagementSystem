@@ -67,7 +67,7 @@ CREATE TABLE `asset_statuses` (
 
 LOCK TABLES `asset_statuses` WRITE;
 /*!40000 ALTER TABLE `asset_statuses` DISABLE KEYS */;
-INSERT INTO `asset_statuses` VALUES (1,'正常',0),(2,'故障',0),(3,'修理中',0),(4,'貸出中',0),(5,'廃棄済み',0),(6,'紛失',0);
+INSERT INTO `asset_statuses` VALUES (1,'利用可',0),(2,'故障',0),(3,'修理中',0),(4,'貸出中',0),(5,'廃棄済み',0),(6,'紛失',0);
 /*!40000 ALTER TABLE `asset_statuses` ENABLE KEYS */;
 UNLOCK TABLES;
 
