@@ -93,6 +93,7 @@ write_config() {
         printf 'DB_NAME=%s\n' "${LIMS_DATABASE_NAME}"
         printf '%s\n' 'LIMS_DATA_DIR=/var/lib/lims/mysql'
         printf '%s\n' 'LIMS_HTTP_PORT=80'
+        printf '%s\n' 'LIMS_BACKEND_PORT=8443'
         printf '%s\n' 'LIMS_IMAGE_TAG=1.0.0'
     } >"${temporary_config}"
 

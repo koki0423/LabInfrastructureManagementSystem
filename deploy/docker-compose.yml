@@ -22,6 +22,8 @@ services:
       context: /usr/lib/lims
       dockerfile: /usr/share/lims/backend.Dockerfile
     restart: unless-stopped
+    ports:
+      - ${LIMS_BACKEND_PORT:-8443}:8443
     environment:
       APP_VERSION: ${LIMS_IMAGE_TAG:-1.0.0}
       APP_MODE: release
