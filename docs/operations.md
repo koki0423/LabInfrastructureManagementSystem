@@ -58,6 +58,16 @@ sudo test -d /var/lib/lims/mysql
 
 `remove` と `purge` はMySQLデータディレクトリを削除しません。データを完全に消去する必要がある場合は、バックアップを確認した上で管理者が明示的に `/var/lib/lims/mysql` を削除します。
 
+## 手動バックアップ
+
+任意の時点でDBを保存するには、root権限で既存の保存先ディレクトリを指定します。出力ファイル名は `lims_v2_YYYYmmddTHHMMSSZ.sql.gz` です。
+
+```bash
+sudo limsctl backup /mnt/google-drive/lims-backups
+```
+
+バックアップ中はMySQLコンテナだけを起動し、`mysqldump --single-transaction` によりInnoDBの一貫したスナップショットを取得します。バックアップファイルには業務データが含まれるため、保存先のアクセス権を適切に管理してください。出力ファイルは `0600` で作成され、生成後にgzip形式として検証されます。
+
 ## 更新時の扱い
 
 `postinst` はユーザー作成、ディレクトリ作成、案内表示だけを行い、コンテナ起動・DB初期化・migrationは実行しません。更新後は `sudo limsctl restart` を実行します。既存の `/etc/lims/lims.env` は更新で上書きせず、従来の `root` 接続設定も維持します。既存DBの初期管理者は更新で自動変更されないため、旧版から更新した環境では `sudo limsctl inituser sys-super-admin` を実行して初期管理者パスワードを再発行してください。別ユーザーの作成または復旧が必要な場合は、`sudo limsctl inituser <ユーザー名>` を実行します。v1.0.0には初回SQL以外のmigrationはないため、将来のスキーマ変更時は、データを破壊しない専用migrationを`limsctl`に追加します。
