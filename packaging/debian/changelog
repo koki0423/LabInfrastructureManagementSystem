@@ -1,5 +1,5 @@
-lims-system (1.0.0) stable; urgency=medium
+lims-system (1.21.0) stable; urgency=medium
 
-  * Initial monorepo package release.
+  * Bundle label print templates into the backend binary.
 
- -- DLab LIMS Maintainers <lims-admin@example.ac.jp>  Mon, 05 Oct 2026 18:00:00 +0900
+ -- DLab LIMS Maintainers <lims-admin@example.ac.jp>  Mon, 26 Oct 2026 12:00:00 +0900

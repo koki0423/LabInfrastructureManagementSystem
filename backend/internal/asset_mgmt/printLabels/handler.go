@@ -2,6 +2,7 @@ package printLabels
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -82,13 +83,14 @@ func (h *Handler) DownloadTemplate(c *gin.Context) {
 		return
 	}
 
-	fullpath, filename, err := h.svc.ResolveTemplatePath(c.Request.Context(), q.Width, q.Type)
+	contents, filename, err := h.svc.ResolveTemplate(c.Request.Context(), q.Width, q.Type)
 	if err != nil {
 		c.JSON(toHTTPStatus(err), newErrDTO(err))
 		return
 	}
 
-	c.FileAttachment(fullpath, filename)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "application/octet-stream", contents)
 }
 
 // ===== helpers =====

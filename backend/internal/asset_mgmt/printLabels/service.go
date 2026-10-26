@@ -2,11 +2,11 @@ package printLabels
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
-	"os"
-	"path/filepath"
 )
 
 type Service struct {
@@ -14,29 +14,27 @@ type Service struct {
 
 func NewService() *Service { return &Service{} }
 
-func (s *Service) ResolveTemplatePath(ctx context.Context, width int, barcodeType string) (string, string, error) {
-	baseDir, err := os.Getwd()
-	if err != nil {
-		return "", "", ErrInternal("failed to resolve working directory")
+// embeddedTemplates keeps label templates available regardless of the runtime
+// working directory or the files included in a deployment image.
+//
+//go:embed templates/*.lw1
+var embeddedTemplates embed.FS
+
+func (s *Service) ResolveTemplate(ctx context.Context, width int, barcodeType string) ([]byte, string, error) {
+	if err := validateTemplateRequest(width, barcodeType); err != nil {
+		return nil, "", ErrInvalid("invalid tape width or code type")
 	}
 
-	err = validateTemplateRequest(width, barcodeType)
-	if err != nil {
-		return "", "", ErrInvalid("invalid tape width or code type")
-	}
-
-	tplDir := filepath.Join(baseDir, "internal", "asset_mgmt", "printLabels", "templates")
 	filename := fmt.Sprintf("%d_%s.lw1", width, barcodeType)
-	fullpath := filepath.Join(tplDir, filename)
-
-	if _, err = os.Stat(fullpath); err != nil {
-		if os.IsNotExist(err) {
-			return "", "", ErrNotFound(fmt.Sprintf("template not found: %s", filename))
+	contents, err := embeddedTemplates.ReadFile("templates/" + filename)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, "", ErrNotFound(fmt.Sprintf("template not found: %s", filename))
 		}
-		return "", "", ErrInternal(err.Error())
+		return nil, "", ErrInternal("failed to read embedded template")
 	}
 
-	return fullpath, filename, nil
+	return contents, filename, nil
 }
 
 func validateTemplateRequest(width int, barcodeType string) error {
