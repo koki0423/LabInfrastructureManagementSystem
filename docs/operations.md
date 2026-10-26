@@ -8,6 +8,8 @@
 - `backend`: パッケージ内の静的Goバイナリを実行するコンテナ。
 - `frontend`: nginxで静的フロントエンドを配信し、`/api/` と `/swagger/` をbackendへ中継するコンテナ。
 
+標準ではフロントエンドを `LIMS_HTTP_PORT`（既定値 `80`）、バックエンドAPIを `LIMS_BACKEND_PORT`（既定値 `8443`）でホストに公開します。棚卸用ハンドヘルド端末などがAPIを直接利用する場合は、サーバーのファイアウォールで `8443/TCP` の接続元を必要なネットワークに限定してください。
+
 初期SQLは `lims-init.sql` を使用します。DB名は既存設定との互換性のため `lims_v2` を維持しています。SQLはMySQLのデータディレクトリが空の場合にのみ公式イメージにより実行されます。初期SQLはDBユーザーや固定の初期管理者を投入せず、初期管理者は `limsctl init` が安全な乱数パスワードとbcryptハッシュを使って作成します。
 
 初回の `limsctl init` は、MySQL root用とバックエンド専用DBユーザー用の認証情報を設定します。対話実行では「自動生成（推奨）」または「手入力」を選択できます。設定方法を明示する場合は、`sudo limsctl init --db-credentials auto` または `sudo limsctl init --db-credentials manual` を指定します。手入力には対話可能な端末が必要です。手入力するDBパスワードは16〜128文字の英数字、ピリオド、アンダースコア、ハイフンを使用できます。アプリ用DBユーザー名は英字で始まる32文字以下の英数字またはアンダースコアを指定します。
@@ -57,6 +59,16 @@ sudo test -d /var/lib/lims/mysql
 ```
 
 `remove` と `purge` はMySQLデータディレクトリを削除しません。データを完全に消去する必要がある場合は、バックアップを確認した上で管理者が明示的に `/var/lib/lims/mysql` を削除します。
+
+## 手動バックアップ
+
+任意の時点でDBを保存するには、root権限で既存の保存先ディレクトリを指定します。出力ファイル名は `lims_v2_YYYYmmddTHHMMSSZ.sql.gz` です。
+
+```bash
+sudo limsctl backup /mnt/google-drive/lims-backups
+```
+
+バックアップ中はMySQLコンテナだけを起動し、`mysqldump --single-transaction` によりInnoDBの一貫したスナップショットを取得します。バックアップファイルには業務データが含まれるため、保存先のアクセス権を適切に管理してください。出力ファイルは `0600` で作成され、生成後にgzip形式として検証されます。
 
 ## 更新時の扱い
 

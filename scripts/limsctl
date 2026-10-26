@@ -93,6 +93,7 @@ write_config() {
         printf 'DB_NAME=%s\n' "${LIMS_DATABASE_NAME}"
         printf '%s\n' 'LIMS_DATA_DIR=/var/lib/lims/mysql'
         printf '%s\n' 'LIMS_HTTP_PORT=80'
+        printf '%s\n' 'LIMS_BACKEND_PORT=8443'
         printf '%s\n' 'LIMS_IMAGE_TAG=1.0.0'
     } >"${temporary_config}"
 
@@ -185,6 +186,54 @@ mysql_root_query() {
 mysql_root_execute() {
     compose exec -T db \
         mysql --protocol=TCP -h 127.0.0.1 -uroot "-p${MYSQL_ROOT_PASSWORD}"
+}
+
+backup_database() {
+    local destination_dir="$1"
+    local timestamp
+    local output_file
+    local temporary_file
+
+    require_root backup
+    ensure_docker
+    load_config
+    ensure_initialized
+
+    [[ "${destination_dir}" = /* ]] || die "保存先は絶対パスで指定してください。"
+    [ -d "${destination_dir}" ] || die "保存先ディレクトリが存在しません: ${destination_dir}"
+    [ -w "${destination_dir}" ] || die "保存先ディレクトリに書き込めません: ${destination_dir}"
+    command -v gzip >/dev/null 2>&1 || die "gzip コマンドが見つかりません。"
+
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    output_file="${destination_dir}/${MYSQL_DATABASE}_${timestamp}.sql.gz"
+    [ ! -e "${output_file}" ] && [ ! -L "${output_file}" ] \
+        || die "同名のバックアップファイルが既に存在します: ${output_file}"
+    temporary_file="$(mktemp "${destination_dir}/.${MYSQL_DATABASE}_${timestamp}.sql.gz.tmp.XXXXXX")" \
+        || die "バックアップ用の一時ファイルを作成できません。"
+
+    info "MySQLコンテナを起動します。"
+    compose up -d db
+    wait_for_mysql
+
+    info "データベースをバックアップしています。"
+    if ! compose exec -T db sh -c \
+        'exec mysqldump --protocol=TCP -h 127.0.0.1 -uroot "-p${MYSQL_ROOT_PASSWORD}" --single-transaction --routines --events --triggers --hex-blob --set-gtid-purged=OFF --databases "${MYSQL_DATABASE}"' \
+        | gzip -c >"${temporary_file}"; then
+        rm -f -- "${temporary_file}"
+        die "データベースのバックアップに失敗しました。"
+    fi
+
+    if [ ! -s "${temporary_file}" ] || ! gzip -t "${temporary_file}"; then
+        rm -f -- "${temporary_file}"
+        die "生成したバックアップファイルの検証に失敗しました。"
+    fi
+
+    if ! mv -n -- "${temporary_file}" "${output_file}" || [ -e "${temporary_file}" ]; then
+        rm -f -- "${temporary_file}"
+        die "バックアップファイルを保存先へ移動できませんでした。保存先に同名ファイルがないか確認してください。"
+    fi
+
+    echo "[OK] バックアップを保存しました: ${output_file}"
 }
 
 bootstrap_admin() {
@@ -369,7 +418,7 @@ show_logs() {
 
 usage() {
     cat <<'EOF'
-Usage: limsctl {init|inituser|start|stop|restart|status|logs}
+Usage: limsctl {init|inituser|start|stop|restart|status|logs|backup}
 
   init [--db-credentials auto|manual]
                        初期設定、初期管理者の発行、サービス自動起動を有効化します
@@ -380,6 +429,8 @@ Usage: limsctl {init|inituser|start|stop|restart|status|logs}
   restart              LIMSを再起動します
   status               LIMSの状態を表示します
   logs                 コンテナログを表示します
+  backup <保存先ディレクトリ>
+                       MySQLの一貫性のある圧縮バックアップを保存します
 EOF
 }
 
@@ -422,6 +473,10 @@ case "${1:-}" in
     logs)
         shift
         show_logs "$@"
+        ;;
+    backup)
+        [ "$#" -eq 2 ] || die "backup は保存先ディレクトリを1つ指定してください。"
+        backup_database "$2"
         ;;
     -h|--help|help)
         usage
